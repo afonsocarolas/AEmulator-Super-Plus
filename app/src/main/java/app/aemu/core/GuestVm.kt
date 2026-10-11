@@ -114,6 +114,8 @@ class GuestVm(val ctx: Context, val img: GuestImage, val lowPowerBoot: Boolean =
     val frames = FrameBell(paths, ::log) { onFrame?.invoke() }
     private val events = EventsSink(paths, ::log)
     private val logd = LogdSink(paths, ::log)
+    /** Android 8+: /dev/hwbinder and /dev/vndbinder (the engine has /dev/binder only), served to libaemuhwb.so */
+    private val hwbinder = HwBinderDaemon(paths.socket("aemu_hwbinder"), ::log)
     @Volatile private var lmk: GuestLmk? = null
     val net = NetProxy(ctx, paths, ::log)
     private val dns = DnsProxy(paths, img.api, ::log)
@@ -594,6 +596,7 @@ class GuestVm(val ctx: Context, val img: GuestImage, val lowPowerBoot: Boolean =
         events.start()
         // LPW39 (L preview, API 20) already logs through logd's /dev/socket/logdw; without the host receiver every ART message is lost
         if (img.api >= 21 || isLpw39) logd.start()
+        if (img.api >= 26) hwbinder.start()
         lmk = GuestLmk(paths.root, s.lowRam, ::log, s.ramMb).also { it.start() }
         val netCfg = if (s.netProxy) net.start() else GuestRunner.NetConfig()
         runner.sdcardHost = sd
@@ -1250,7 +1253,7 @@ class GuestVm(val ctx: Context, val img: GuestImage, val lowPowerBoot: Boolean =
         motion.stop()
         runCatching { guestRunner.run(listOf("/system/bin/sync"), 5_000) }
         killAll()
-        adb.stop(); props.stop(); input.stop(); frames.stop(); ril.stop(); vold.stop(); audio.stop(); net.stop(); dns.stop(); events.stop(); logd.stop()
+        adb.stop(); props.stop(); input.stop(); frames.stop(); ril.stop(); vold.stop(); audio.stop(); net.stop(); dns.stop(); events.stop(); logd.stop(); hwbinder.stop()
         extraStubs.forEach { it.stop() }; extraStubs.clear()
         lmk?.stop(); lmk = null
         Keeper.release(ctx)

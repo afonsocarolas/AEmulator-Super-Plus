@@ -13,6 +13,7 @@ Super Plus changes (2026-10-11):
 - ELF boot images (Sony `kernel.sin` / `fotakernel.sin`) in `BootImage.ramdisk`.
 - Application id `app.aemu.superplus` and the "AEmulator Super Plus" name.
 - Android 8.x groundwork: version detection, `/vendor` and `/odm` init scripts, Treble service managers in the boot plan, boot-time Treble report (`app/src/main/java/app/aemu/core/TrebleReport.kt`).
+- Own Treble binder devices: `native/guestshim/hwbinder.c` (built into `libaemuhwb.so`, preloaded only for Android 8+) and `app/src/main/java/app/aemu/core/HwBinderDaemon.kt`.
 
 ---
 

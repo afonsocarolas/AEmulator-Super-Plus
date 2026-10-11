@@ -1,3 +1,4 @@
+/* Modified for AEmulator Super Plus, 2026-10-11: libaemuhwb.so preload for Android 8+. GPL-3.0; see LICENSE and NOTICE.md. */
 package app.aemu.core
 
 import java.io.File
@@ -64,7 +65,7 @@ class GuestRunner(
         e["DHD_ENV_LD_LIBRARY_PATH"] = img.exports["LD_LIBRARY_PATH"] ?: "/vendor/lib:/system/lib"
         // ashmem через memfd (движок) + наша прослойка от запрещённых в песочнице вызовов (mount, reboot…).
         // glibc firmware (Google TV) cannot load the bionic-linked libaemushim.so (DT_NEEDED libc.so): ashmem shim only.
-        e["DHD_ENV_LD_PRELOAD"] = GuestPreload.value(GuestPreload.isGlibcFirmware(paths.root))
+        e["DHD_ENV_LD_PRELOAD"] = GuestPreload.value(GuestPreload.isGlibcFirmware(paths.root), treble = img.api >= 26)
         e["ANDROID_ROOT"] = img.exports["ANDROID_ROOT"] ?: "/system"
         e["ANDROID_DATA"] = img.exports["ANDROID_DATA"] ?: "/data"
         e["ANDROID_ASSETS"] = img.exports["ANDROID_ASSETS"] ?: "/system/app"

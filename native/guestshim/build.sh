@@ -20,3 +20,8 @@ BIN="$(dirname "$CC")"
   -fvisibility=hidden -fno-stack-protector -ffreestanding -fno-builtin -Wl,--hash-style=sysv -Wl,-z,norelro -Wl,--no-undefined \
   -Wl,-soname,librecshim.so -Wl,--build-id=none -o "$(dirname "$OUT")/librecshim.so" recshim.c -lc
 "$BIN/llvm-strip" "$(dirname "$OUT")/librecshim.so"
+# Android 8+: /dev/hwbinder and /dev/vndbinder in the guest (HwBinderDaemon on the host); loaded first in LD_PRELOAD
+"$CC" --target=armv7a-linux-androideabi21 -march=armv7-a -mthumb -Os -fPIC -shared -nostdlib \
+  -fvisibility=hidden -fno-stack-protector -ffreestanding -fno-builtin -Wl,--hash-style=sysv -Wl,-z,norelro -Wl,--no-undefined \
+  -Wl,-soname,libaemuhwb.so -Wl,--build-id=none -o "$(dirname "$OUT")/libaemuhwb.so" hwbinder.c -lc -ldl
+"$BIN/llvm-strip" "$(dirname "$OUT")/libaemuhwb.so"

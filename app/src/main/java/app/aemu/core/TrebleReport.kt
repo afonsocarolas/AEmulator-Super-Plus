@@ -27,8 +27,8 @@ object TrebleReport {
     fun lines(api: Int, root: File, plan: List<GuestService>): List<String> {
         if (api < 26) return emptyList()
         val out = ArrayList<String>()
-        out += "treble: Android 8+ (API $api) is groundwork only; the engine provides /dev/binder but not /dev/hwbinder " +
-            "or /dev/vndbinder, so HIDL services cannot register"
+        out += "treble: Android 8+ (API $api) is experimental: /dev/hwbinder and /dev/vndbinder are served by the app " +
+            "(libaemuhwb.so + HwBinderDaemon); the engine's /dev/binder still speaks only the pre-8.0 32-bit format"
         val vendor = File(root, "vendor/build.prop").isFile || File(root, "vendor/lib").isDirectory
         val manifest = MANIFESTS.firstOrNull { File(root, it).isFile }
         out += "treble: vendor partition ${if (vendor) "present" else "missing"}, VINTF manifest ${manifest?.let { "/$it" } ?: "missing"}"

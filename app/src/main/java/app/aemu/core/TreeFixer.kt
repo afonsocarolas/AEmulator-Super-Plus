@@ -572,6 +572,8 @@ class TreeFixer(
         }
         for ((from, to) in (copies + nougat).filter { !noBridge || !it.second.startsWith("system/lib/egl/libGLES_") } +
             listOf("@libaemushim.so" to "system/lib/libaemushim.so") +
+            // Android 8+: the guest side of /dev/hwbinder and /dev/vndbinder (HwBinderDaemon)
+            (if (img.api >= 26) listOf("@libaemuhwb.so" to GuestPreload.HWB.removePrefix("/")) else emptyList()) +
             // glibc (Google TV) firmware: fake /dev/shm_cache and /dev/shm_noncache so av_settings & co. can start
             (if (GuestPreload.isGlibcFirmware(root)) listOf("@libshmshim.so" to GuestPreload.SHMSHIM.removePrefix("/")) else emptyList())) {
             val dst = File(root, to)
