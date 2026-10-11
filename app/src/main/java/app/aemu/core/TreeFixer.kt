@@ -1,5 +1,5 @@
 /* Modified for AEmulator Sunset, 2026-10-03: source-backed host motion HAL.
- * Modified for AEmulator Super Plus, 2026-10-11: Android 8.x healthd in /system/bin.
+ * Modified for AEmulator Super Plus, 2026-10-11: Android 8.x healthd in /system/bin; camcorder profiles for video.
  * GPL-3.0; see LICENSE and NOTICE.md. */
 package app.aemu.core
 
@@ -471,6 +471,11 @@ class TreeFixer(
 
     private fun installCameraHal() {
         val enabled = img.settings.camera && engine == Engine.KK && img.api in 14..25
+        // video: the camera app records the camcorder profile's size, which the bridge has to deliver (640x480)
+        runCatching {
+            if (CamcorderProfiles.configure(root, enabled))
+                log(if (enabled) "camera: camcorder profiles set to ${CamcorderProfiles.WIDTH}x${CamcorderProfiles.HEIGHT} (original kept)" else "camera: original camcorder profiles restored")
+        }.onFailure { log("camera: camcorder profiles not changed: ${it.message}") }
         val destination = File(root, "system/lib/hw/camera.aemu_host.so")
         if (!enabled) {
             if (CameraHalFallback.configure(root, destination, false)) log("camera: restored previous default HAL slot")

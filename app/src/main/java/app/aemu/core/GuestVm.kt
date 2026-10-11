@@ -1,6 +1,6 @@
 /* Modified for AEmulator Sunset through 2026-10-03: motion and boot-media bridges,
  * live library status; 2026-10-04: native boot of framework-less MMI/FTM builds.
- * Modified for AEmulator Super Plus, 2026-10-11: Android 8.x Treble boot report.
+ * Modified for AEmulator Super Plus, 2026-10-11: Android 8.x Treble boot report, host microphone.
  * GPL-3.0; upstream attribution retained in NOTICE.md. */
 package app.aemu.core
 
@@ -99,7 +99,10 @@ class GuestVm(val ctx: Context, val img: GuestImage, val lowPowerBoot: Boolean =
     fun simulateRotation() = motion.simulateRotation()
     val cameraSupported get() = engine == Engine.KK && img.api in 14..25 && !recoveryMode && !nativeUi
     private val camera = HostCameraBridge(ctx, paths, { settings.camera && cameraSupported }, ::log)
-    fun cameraVisible(visible: Boolean) { camera.visible(visible) }
+    /** Guest microphone input (audio HAL, 4.0-7.x): the phone's microphone while the VM is on screen, else silence. */
+    val micSupported get() = engine == Engine.KK && img.api in 14..25 && !recoveryMode && !nativeUi
+    private val mic = HostMicBridge(ctx, paths, { settings.microphone && micSupported }, ::log)
+    fun cameraVisible(visible: Boolean) { camera.visible(visible); mic.visible(visible) }
     val bluetoothSupported get() = engine == Engine.KK && img.api in 9..25 && !recoveryMode && !nativeUi
     private val bluetooth = BluetoothBridge(ctx, paths, { settings.bluetooth && bluetoothSupported }, ::log)
     val wifiSupported get() = WifiEmu.supported(engine, img.api, recoveryMode, nativeUi)
@@ -145,6 +148,7 @@ class GuestVm(val ctx: Context, val img: GuestImage, val lowPowerBoot: Boolean =
             vibration.stop()
             battery.stop()
             camera.stop()
+            mic.stop()
             bluetooth.stop()
             motion.stop()
             failure = t.message ?: t.toString()
@@ -562,6 +566,7 @@ class GuestVm(val ctx: Context, val img: GuestImage, val lowPowerBoot: Boolean =
         vibration.serve()
         motion.serve()
         if (s.camera && cameraSupported) camera.serve()
+        if (s.microphone && micSupported) mic.serve()
         if (s.bluetooth && bluetoothSupported) bluetooth.serve()
         frames.serve()
         if (s.radio) ril.serve() else log("radio: emulation disabled in settings")
@@ -1249,6 +1254,7 @@ class GuestVm(val ctx: Context, val img: GuestImage, val lowPowerBoot: Boolean =
         vibration.stop()
         battery.stop()
         camera.stop()
+        mic.stop()
         bluetooth.stop()
         motion.stop()
         runCatching { guestRunner.run(listOf("/system/bin/sync"), 5_000) }

@@ -1,5 +1,6 @@
 /* Modified for AEmulator Sunset through 2026-10-03: natural-edge controls, cutout and
- * compatibility and camera integration. GPL-3.0; see LICENSE and NOTICE.md. */
+ * compatibility and camera integration.
+ * Modified for AEmulator Super Plus, 2026-10-11: microphone permission. GPL-3.0; see LICENSE and NOTICE.md. */
 package app.aemu.ui
 
 import app.aemu.R
@@ -171,6 +172,10 @@ class VmActivity : ComponentActivity() {
     /** Camera and Bluetooth are requested together so the VM boots once, after the person has answered. */
     private val hostPermissions = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
         if (::vm.isInitialized) {
+            result[android.Manifest.permission.RECORD_AUDIO]?.let { granted ->
+                vm.log("microphone: host permission ${if (granted) "granted" else "denied"}")
+                if (!granted) toast(getString(R.string.mic_permission_denied))
+            }
             result[android.Manifest.permission.CAMERA]?.let { granted ->
                 vm.log("camera: host permission ${if (granted) "granted" else "denied"}")
                 if (!granted) toast(getString(R.string.camera_permission_denied))
@@ -318,6 +323,9 @@ class VmActivity : ComponentActivity() {
 
         registerShell()
         val needed = buildList {
+            if (s.microphone && vm.micSupported &&
+                checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED)
+                add(android.Manifest.permission.RECORD_AUDIO)
             if (s.camera && vm.cameraSupported &&
                 checkSelfPermission(android.Manifest.permission.CAMERA) != android.content.pm.PackageManager.PERMISSION_GRANTED)
                 add(android.Manifest.permission.CAMERA)

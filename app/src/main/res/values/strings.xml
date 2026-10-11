@@ -235,7 +235,7 @@
     <string name="update_download_error">Download failed: %1$s</string>
     <string name="update_open_github">View on GitHub</string>
     <string name="vs_camera">Host camera (experimental)</string>
-    <string name="vs_camera_sub">HAL1 ROMs: 640×480 preview and photos, rear/front camera. Requires permission and a full VM restart. Camera closes when AEmulator is backgrounded; reopen the guest camera app. No video recording.</string>
+    <string name="vs_camera_sub">HAL1 ROMs: 640×480 preview and photos, rear/front camera. Requires permission and a full VM restart. Camera closes when AEmulator is backgrounded; reopen the guest camera app. Video is recorded at 640×480.</string>
     <string name="camera_permission_denied">Camera permission denied. The ROM will boot without host-camera access; grant permission in Android app settings and fully restart the VM to retry.</string>
     <string name="vs_skip_setup">Skip setup wizard</string>
     <string name="vs_skip_setup_sub">Mark setup complete and disable recognized setup apps on next full boot. Turning off does not reset completed setup. OEM support may vary.</string>
@@ -360,4 +360,7 @@
     <string name="lib3d_container">Container</string>
     <string name="lib3d_show_list">Show as list</string>
     <string name="lib3d_show_3d">Show as 3D phones</string>
+    <string name="vs_microphone">Microphone</string>
+    <string name="vs_microphone_sub">The VM hears the microphone of this phone (voice recorders, video sound) while it is on screen. Off: recordings are silent. Applies at the next boot.</string>
+    <string name="mic_permission_denied">Microphone permission denied: the VM records silence. Grant it in Android app settings and fully restart the VM to retry.</string>
 </resources>

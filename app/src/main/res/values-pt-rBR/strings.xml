@@ -211,7 +211,7 @@
     <string name="update_download_error">Falha no download: %1$s</string>
     <string name="update_open_github">Ver no GitHub</string>
     <string name="vs_camera">Câmera do host (experimental)</string>
-    <string name="vs_camera_sub">ROMs HAL1: prévia e fotos de 640×480, câmera traseira/frontal. Requer permissão e uma reinicialização completa da VM. A câmera fecha quando o AEmulator vai para segundo plano; abra de novo o app de câmera do convidado. Sem gravação de vídeo.</string>
+    <string name="vs_camera_sub">ROMs HAL1: prévia e fotos de 640×480, câmera traseira/frontal. Requer permissão e uma reinicialização completa da VM. A câmera fecha quando o AEmulator vai para segundo plano; abra de novo o app de câmera do convidado. Os vídeos são gravados em 640×480.</string>
     <string name="camera_permission_denied">Permissão da câmera negada. A ROM vai iniciar sem acesso à câmera do host; conceda a permissão nas configurações do app no Android e reinicie completamente a VM para tentar de novo.</string>
     <string name="vs_skip_setup">Pular o assistente de configuração</string>
     <string name="vs_skip_setup_sub">Marca a configuração como concluída e desativa os apps de configuração reconhecidos na próxima inicialização completa. Desativar não desfaz uma configuração já concluída. O suporte pode variar conforme o fabricante.</string>
@@ -326,4 +326,7 @@
     <string name="lib3d_container">Contêiner</string>
     <string name="lib3d_show_list">Mostrar como lista</string>
     <string name="lib3d_show_3d">Mostrar como celulares 3D</string>
+    <string name="vs_microphone">Microfone</string>
+    <string name="vs_microphone_sub">A VM ouve o microfone deste celular (gravadores de voz, som dos vídeos) enquanto está na tela. Desativado: as gravações ficam sem som. Aplica-se na próxima inicialização.</string>
+    <string name="mic_permission_denied">Permissão do microfone negada: a VM grava silêncio. Conceda nas configurações do app no Android e reinicie completamente a VM para tentar de novo.</string>
 </resources>

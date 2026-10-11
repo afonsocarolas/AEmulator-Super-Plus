@@ -84,6 +84,8 @@ data class VmSettings(
     val wifiSignal: Int = WifiEmu.MAX_BARS,
     /** A scan also lists a few other (locked) networks nearby. */
     val wifiNeighbors: Boolean = true,
+    /** Guest microphone = the phone's (needs RECORD_AUDIO); off = guest recordings are silent. */
+    val microphone: Boolean = false,
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("width", width).put("height", height).put("density", density)
@@ -106,7 +108,7 @@ data class VmSettings(
         .put("hardware", hardware)
         .put("wifi", wifi).put("wifiSsid", wifiSsid).put("wifiPassword", wifiPassword)
         .put("sim", sim.toJson()).put("sim2", sim2.toJson()).put("dualSim", dualSim)
-        .put("wifiSignal", wifiSignal).put("wifiNeighbors", wifiNeighbors)
+        .put("wifiSignal", wifiSignal).put("wifiNeighbors", wifiNeighbors).put("microphone", microphone)
 
     companion object {
         /** Luhn-valid sample IMEI from the standard; the guest has no real modem */
@@ -218,6 +220,7 @@ data class VmSettings(
                 dualSim = o.optBoolean("dualSim", false),
                 wifiSignal = o.optInt("wifiSignal", d.wifiSignal).coerceIn(1, WifiEmu.MAX_BARS),
                 wifiNeighbors = o.optBoolean("wifiNeighbors", d.wifiNeighbors),
+                microphone = o.optBoolean("microphone", false),
             )
         }
     }

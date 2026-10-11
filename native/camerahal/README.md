@@ -12,7 +12,15 @@ Transport: `/dev/aemu_camera` Unix socket, 16-byte little-endian `CAM1` request
 2 current-preview-frame JPEG. Replies: `INF1` count + facing/orientation pairs;
 `FRM1` or `JPG1` + byte count + 64-bit timestamp + payload; `ERR1` + negative
 errno. Preview is 640×480 NV21. HAL renders RGBA8888 through guest gralloc,
-delivers preview/JPEG callbacks and writes EXIF orientation. No video/raw/flash.
+delivers preview/JPEG callbacks and writes EXIF orientation. No raw/flash.
+
+Video (Super Plus, 2026-10-11): `start_recording` lends 640×480 frames to the recorder
+in six shared-memory slots, as `yuv420p` (I420, converted from the host NV21) with
+monotonic timestamps; `release_recording_frame` frees a slot, a frame is dropped
+when all six are out. Frame-rate parameters are accepted as asked (the host delivers
+what it can). While the camera is on, `CamcorderProfiles` points the ROM's
+`media_profiles.xml` camcorder profiles at 640×480 (original parked and restored).
+Video sound comes from the audio HAL input stream (host microphone or silence).
 
 Host access requires explicit setting, runtime permission and a resumed VM
 activity. Enumeration does not open the camera and stays stable in background;

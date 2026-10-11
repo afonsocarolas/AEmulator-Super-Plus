@@ -1,5 +1,6 @@
 /* AEmulator-owned HAL1 camera. Standard device ABI, host NV21/JPEG transport;
- * no vendor binaries, private sensor drivers, recording or raw capture. */
+ * no vendor binaries, private sensor drivers or raw capture.
+ * Modified for AEmulator Super Plus, 2026-10-11: video recording (I420 frames to the recorder). */
 #include "abi.h"
 #include "transport.h"
 #include <stdlib.h>
@@ -11,8 +12,11 @@
 #define MSG_SHUTTER 2
 #define MSG_FOCUS 4
 #define MSG_PREVIEW 0x10
+#define MSG_VIDEO_FRAME 0x20
 #define MSG_JPEG 0x100
 #define MSG_RAW_NOTIFY 0x200
+/* frames lent to the recorder at once; it hands each back with release_recording_frame */
+#define VIDEO_SLOTS 6
 
 typedef struct {
     cam_device device;
@@ -22,8 +26,12 @@ typedef struct {
     pthread_t execution;
     int in_worker;
     int id, fd, started, running, messages, capture, quality, rotation;
-    cam_notify notify; cam_data data; cam_allocate allocate; void *user;
+    cam_notify notify; cam_data data; cam_timestamp timestamp; cam_allocate allocate; void *user;
     cam_window *window;
+    /* recording: one shared memory of VIDEO_SLOTS frames, a slot is busy until the recorder releases it */
+    int recording;
+    cam_memory *video;
+    int video_busy[VIDEO_SLOTS];
 } camera_state;
 EXPORT cam_module HMI;
 static pthread_mutex_t metadata_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -135,9 +143,8 @@ static int render(camera_state *s, const unsigned char *nv21) {
     return r;
 }
 static void callbacks(cam_device *d, cam_notify n, cam_data data, cam_timestamp ts, cam_allocate a, void *user) {
-    (void)ts;
     camera_state *s = state(d); pthread_mutex_lock(&s->mutex);
-    s->notify = n; s->data = data; s->allocate = a; s->user = user;
+    s->notify = n; s->data = data; s->timestamp = ts; s->allocate = a; s->user = user;
     pthread_mutex_unlock(&s->mutex);
 }
 static void enable(cam_device *d, int messages) {
@@ -166,6 +173,31 @@ static void deliver(camera_state *s, int message, const unsigned char *data, uns
         if (memory->data && memory->size >= size) { memcpy(memory->data, data, size); cb(message, memory, 0, 0, user); }
         if (memory->release) memory->release(memory);
     }
+}
+/* NV21 (Y, then interleaved V/U) -> I420 (Y, U plane, V plane): the recorder is told "yuv420p", which every
+ * software encoder takes as OMX_COLOR_FormatYUV420Planar, so no vendor-specific semi-planar order is involved. */
+static void nv21_to_i420(const unsigned char *in, unsigned char *out) {
+    const unsigned luma = CAM_WIDTH * CAM_HEIGHT, quarter = luma / 4;
+    memcpy(out, in, luma);
+    const unsigned char *vu = in + luma;
+    unsigned char *u = out + luma, *v = out + luma + quarter;
+    for (unsigned i = 0; i < quarter; i++) { v[i] = vu[2 * i]; u[i] = vu[2 * i + 1]; }
+}
+static int64_t now_ns(void) {
+    struct timespec t;
+    clock_gettime(CLOCK_MONOTONIC, &t);   /* systemTime(SYSTEM_TIME_MONOTONIC), what CameraSource expects */
+    return (int64_t)t.tv_sec * 1000000000LL + t.tv_nsec;
+}
+/* while recording: lend the frame to the recorder in a free slot (dropped when all slots are still out) */
+static void deliver_video(camera_state *s, const unsigned char *nv21) {
+    pthread_mutex_lock(&s->mutex);
+    cam_timestamp cb = s->timestamp; void *user = s->user; cam_memory *video = s->video;
+    int on = s->recording && (s->messages & MSG_VIDEO_FRAME) && cb && video && video->data, slot = -1;
+    if (on) for (int i = 0; i < VIDEO_SLOTS; i++) if (!s->video_busy[i]) { slot = i; s->video_busy[i] = 1; break; }
+    pthread_mutex_unlock(&s->mutex);
+    if (slot < 0) return;
+    nv21_to_i420(nv21, (unsigned char *)video->data + (size_t)slot * CAM_BYTES);
+    cb(now_ns(), MSG_VIDEO_FRAME, video, (unsigned)slot, user);
 }
 static unsigned char *jpeg_with_orientation(const unsigned char *jpeg, unsigned size, int rotation, unsigned *out_size) {
     if (size < 2 || jpeg[0] != 0xff || jpeg[1] != 0xd8) return 0;
@@ -218,6 +250,7 @@ static void *preview_thread(void *arg) {
         r = render(s, frame);
         if (r) break;
         deliver(s, MSG_PREVIEW, frame, CAM_BYTES);
+        deliver_video(s, frame);
         pthread_mutex_lock(&s->mutex); int capture = s->capture; pthread_mutex_unlock(&s->mutex);
         if (capture) { r = snapshot(s); break; } // legacy takePicture stops preview
     }
@@ -265,11 +298,40 @@ static int start_preview(cam_device *d) {
     return -r;
 }
 static int preview_enabled(cam_device *d) { return running(state(d)); }
+/* metadata buffers are not offered: the recorder falls back to frames in shared memory */
 static int metadata(cam_device *d, int on) { (void)d; return on ? -ENOSYS : 0; }
-static int record(cam_device *d) { (void)d; return -ENOSYS; }
-static void stop_record(cam_device *d) { (void)d; }
-static int recording(cam_device *d) { (void)d; return 0; }
-static void release_frame(cam_device *d, const void *frame) { (void)d; (void)frame; }
+static int record(cam_device *d) {
+    camera_state *s = state(d);
+    pthread_mutex_lock(&s->mutex);
+    int r = 0;
+    if (!s->allocate || !s->timestamp) r = -ENOSYS;
+    else if (!s->video) {
+        s->video = s->allocate(-1, CAM_BYTES, VIDEO_SLOTS, s->user);
+        if (!s->video || !s->video->data || s->video->size < (size_t)CAM_BYTES * VIDEO_SLOTS) {
+            if (s->video && s->video->release) s->video->release(s->video);
+            s->video = 0; r = -ENOMEM;
+        }
+    }
+    if (!r) { for (int i = 0; i < VIDEO_SLOTS; i++) s->video_busy[i] = 0; s->recording = 1; }
+    pthread_mutex_unlock(&s->mutex);
+    return r;
+}
+static void stop_record(cam_device *d) {
+    camera_state *s = state(d); pthread_mutex_lock(&s->mutex); s->recording = 0; pthread_mutex_unlock(&s->mutex);
+}
+static int recording(cam_device *d) {
+    camera_state *s = state(d); pthread_mutex_lock(&s->mutex); int r = s->recording; pthread_mutex_unlock(&s->mutex); return r;
+}
+/* the recorder gives back a frame by its data pointer (the start of the slot) */
+static void release_frame(cam_device *d, const void *frame) {
+    camera_state *s = state(d);
+    pthread_mutex_lock(&s->mutex);
+    if (s->video && s->video->data && frame) {
+        const unsigned char *base = s->video->data, *p = frame;
+        if (p >= base && p < base + (size_t)CAM_BYTES * VIDEO_SLOTS) s->video_busy[(p - base) / CAM_BYTES] = 0;
+    }
+    pthread_mutex_unlock(&s->mutex);
+}
 static int focus(cam_device *d) { notify(state(d), MSG_FOCUS, 1); return 0; } // advertised fixed focus
 static int cancel_focus(cam_device *d) { (void)d; return 0; }
 static int take_picture(cam_device *d) {
@@ -294,8 +356,10 @@ static int value(const char *params, const char *key, char *out, unsigned capaci
 }
 static int set_parameters(cam_device *d, const char *params) {
     if (!params || strlen(params) > 16384) return -EINVAL;
-    static const char *keys[] = {"preview-size","picture-size","preview-format","picture-format","focus-mode","flash-mode","zoom","preview-frame-rate","preview-fps-range"};
-    static const char *values[] = {"640x480","640x480","yuv420sp","jpeg","fixed","off","0","15","15000,15000"};
+    /* frame rates are not checked: the host delivers what it can and every frame carries its real timestamp
+     * (a recorder asking for 30 fps would otherwise fail before it starts) */
+    static const char *keys[] = {"preview-size","picture-size","preview-format","picture-format","focus-mode","flash-mode","zoom","video-size"};
+    static const char *values[] = {"640x480","640x480","yuv420sp","jpeg","fixed","off","0","640x480"};
     char v[64];
     for (unsigned i = 0; i < sizeof(keys)/sizeof(keys[0]); i++) {
         int found = value(params, keys[i], v, sizeof(v));
@@ -321,12 +385,12 @@ static char *get_parameters(cam_device *d) {
     pthread_mutex_lock(&s->mutex); int rotation = s->rotation, quality = s->quality; pthread_mutex_unlock(&s->mutex);
     snprintf(p, 2048, "preview-size=640x480;preview-size-values=640x480;picture-size=640x480;picture-size-values=640x480;"
         "preview-format=yuv420sp;preview-format-values=yuv420sp;picture-format=jpeg;picture-format-values=jpeg;"
-        "preview-frame-rate=15;preview-frame-rate-values=15;preview-fps-range=15000,15000;preview-fps-range-values=(15000,15000);"
+        "preview-frame-rate=15;preview-frame-rate-values=15,24,30;preview-fps-range=15000,30000;preview-fps-range-values=(15000,30000);"
         "jpeg-quality=%d;jpeg-thumbnail-width=0;jpeg-thumbnail-height=0;jpeg-thumbnail-size-values=0x0;rotation=%d;"
         "focal-length=3.5;horizontal-view-angle=60;vertical-view-angle=45;"
         "focus-mode=fixed;focus-mode-values=fixed;flash-mode=off;flash-mode-values=off;zoom=0;max-zoom=0;zoom-supported=false;"
         "video-size=640x480;video-size-values=640x480;preferred-preview-size-for-video=640x480;"
-        "video-frame-format=yuv420sp;video-snapshot-supported=false;recording-hint=false;whitebalance=auto;whitebalance-values=auto;scene-mode=auto;scene-mode-values=auto;"
+        "video-frame-format=yuv420p;video-snapshot-supported=false;recording-hint=false;whitebalance=auto;whitebalance-values=auto;scene-mode=auto;scene-mode-values=auto;"
         "effect=none;effect-values=none;antibanding=auto;antibanding-values=auto;exposure-compensation=0;min-exposure-compensation=0;"
         "max-exposure-compensation=0;exposure-compensation-step=0;auto-exposure-lock-supported=false;auto-whitebalance-lock-supported=false;"
         "max-num-detected-faces-hw=0;max-num-detected-faces-sw=0;"
@@ -345,12 +409,14 @@ static int command(cam_device *d, int cmd, int a1, int a2) {
     (void)d; (void)a2;
     return cmd == 3 && a1 >= 0 && a1 <= 270 && a1 % 90 == 0 ? 0 : -ENOSYS;
 }
-static void release(cam_device *d) { stop_preview(d); }
+static void release(cam_device *d) { stop_record(d); stop_preview(d); }
 static int dump(cam_device *d, int fd) { (void)d; (void)fd; return 0; }
 static int close_camera(cam_device_common *d) {
     camera_state *s = state((cam_device *)d);
     if (worker_is_self(s)) return -EBUSY;
-    stop_preview(&s->device); pthread_mutex_destroy(&s->control); pthread_mutex_destroy(&s->mutex); free(s); return 0;
+    stop_record(&s->device); stop_preview(&s->device);
+    if (s->video && s->video->release) s->video->release(s->video);
+    pthread_mutex_destroy(&s->control); pthread_mutex_destroy(&s->mutex); free(s); return 0;
 }
 static cam_ops operations = {
     set_window, callbacks, enable, disable, enabled, start_preview, stop_preview, preview_enabled,
