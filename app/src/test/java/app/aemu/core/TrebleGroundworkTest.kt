@@ -48,5 +48,18 @@ class TrebleGroundworkTest {
         assertTrue(lines.none { it.contains("no android.hardware.graphics.allocator") })
     }
 
+    @Test fun oreoHealthdInSystemBinIsPlannedWithoutAnRcEntry() {
+        val root = oreoTree()
+        File(root, "system/bin/healthd").writeText("")
+        val healthd = InitPlan.plan(rc(root), 26, root).firstOrNull { it.name == "healthd" }
+        assertEquals(listOf("/system/bin/healthd"), healthd?.argv)
+    }
+
+    @Test fun ramdiskHealthdStillWinsBeforeOreo() {
+        val root = oreoTree()
+        File(root, "sbin/healthd").apply { parentFile.mkdirs(); writeText("") }
+        assertEquals(listOf("/sbin/healthd"), InitPlan.plan(rc(root), 25, root).firstOrNull { it.name == "healthd" }?.argv)
+    }
+
     @Test fun olderReleasesGetNoReport() = assertTrue(TrebleReport.lines(25, oreoTree(), emptyList()).isEmpty())
 }

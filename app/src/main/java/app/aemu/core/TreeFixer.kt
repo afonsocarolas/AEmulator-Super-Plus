@@ -1,4 +1,5 @@
 /* Modified for AEmulator Sunset, 2026-10-03: source-backed host motion HAL.
+ * Modified for AEmulator Super Plus, 2026-10-11: Android 8.x healthd in /system/bin.
  * GPL-3.0; see LICENSE and NOTICE.md. */
 package app.aemu.core
 
@@ -1855,7 +1856,8 @@ class TreeFixer(
             val link = File(paths.bin, "sys")
             paths.bin.mkdirs()
             if (!isLink(link)) { wipe(link); Os.symlink(File(root, "sys").absolutePath, link.path) }
-            val hd = File(root, "sbin/healthd").takeIf { it.isFile } ?: return
+            // 8.0 moved healthd from the ramdisk to /system/bin; the battery path is compiled into either binary
+            val hd = InitPlan.HEALTHD_PATHS.map { File(root, it.removePrefix("/")) }.firstOrNull { it.isFile } ?: return
             val d = hd.readBytes()
             val from = "/sys/class/power_supply".toByteArray()
             val to = "sys/class/power_supply".toByteArray() + 0

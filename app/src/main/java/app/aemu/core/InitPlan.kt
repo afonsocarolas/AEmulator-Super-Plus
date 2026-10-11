@@ -196,11 +196,14 @@ object InitPlan {
         )
     }
 
+    /** healthd lives in the ramdisk up to 7.x and in the system partition from 8.0 on. */
+    val HEALTHD_PATHS = listOf("/sbin/healthd", "/system/bin/healthd")
+
     /** Умолчания для образов без init.rc (например, только /system из прошивки). */
     fun defaults(name: String, api: Int, root: File): GuestService? = when (name) {
         "servicemanager" -> GuestService("servicemanager", listOf("/system/bin/servicemanager"))
         "surfaceflinger" -> if (api >= 14) GuestService("surfaceflinger", listOf("/system/bin/surfaceflinger")) else null
-        "healthd" -> if (File(root, "sbin/healthd").isFile) GuestService("healthd", listOf("/sbin/healthd")) else null
+        "healthd" -> HEALTHD_PATHS.firstOrNull { File(root, it.removePrefix("/")).isFile }?.let { GuestService("healthd", listOf(it)) }
         "keystore" -> GuestService("keystore", listOf("/system/bin/keystore", "/data/misc/keystore"))
         "installd" -> GuestService("installd", listOf("/system/bin/installd"), mapOf("installd" to "0600"))
         "netd" -> GuestService("netd", listOf("/system/bin/netd"),

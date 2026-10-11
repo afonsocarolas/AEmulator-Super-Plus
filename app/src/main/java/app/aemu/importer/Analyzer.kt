@@ -72,7 +72,8 @@ class Analyzer(private val ctx: Context, private val paths: VmPaths, private val
         if (noBuildProp) warnings += "No system/build.prop: Android version was inferred from the system tree."
         if (rcFiles.isEmpty() && dhdBcp == null) warnings += "No boot.img in firmware: boot plan and BOOTCLASSPATH were guessed."
         if (api >= 19 && plan.none { it.name == "healthd" })
-            warnings += "No healthd in the boot plan (no /sbin/healthd; ramdisk missing from the import?): system_server will die in BatteryService."
+            warnings += if (api >= 26) "No healthd in the boot plan (no /system/bin/healthd): system_server will die in BatteryService."
+                else "No healthd in the boot plan (no /sbin/healthd; ramdisk missing from the import?): system_server will die in BatteryService."
         if (abi.startsWith("arm64")) warnings += "64-bit firmware: only 32-bit ARM is supported."
         if (abi.startsWith("x86") || abi.startsWith("mips")) warnings += "Firmware is not ARM ($abi) and will not run."
         if (api >= 26) warnings += "Android ${release}: groundwork only. The engine has no /dev/hwbinder or /dev/vndbinder yet, " +
@@ -118,7 +119,7 @@ class Analyzer(private val ctx: Context, private val paths: VmPaths, private val
     }
 
     companion object {
-        const val VERSION = 16 // 16: Android 8.x (Treble) groundwork
+        const val VERSION = 17 // 16: Android 8.x (Treble) groundwork; 17: 8.x healthd in /system/bin
 
         /**
          * Form-factor tag from ro.build.characteristics: if the line contains "tv" it is Google TV below API 18 and
