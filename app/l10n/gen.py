@@ -41,7 +41,7 @@ def main():
             print(f"{code}: нет {lack} лишние {extra}")
         out = ['<?xml version="1.0" encoding="utf-8"?>', "<!-- создано app/l10n/gen.py, правьте langs/*.py -->", "<resources>"]
         if code == "en":
-            out.append('    <string name="app_name" translatable="false">AEmulator Plus</string>')
+            out.append('    <string name="app_name" translatable="false">AEmulator Super Plus</string>')
         for k in KEYS:
             if k in s:
                 out.append(f'    <string name="{k}">{esc(s[k])}</string>')

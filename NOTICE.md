@@ -1,3 +1,20 @@
+# AEmulator Super Plus modification notice
+
+**AEmulator Super Plus** is a modified fork of
+[somerandomusernam2/AEmulator-Plus](https://github.com/somerandomusernam2/AEmulator-Plus),
+derived from AEmulator Plus `0.0.0.2.9` on 2026-10-11. It remains licensed under the GNU General
+Public License, version 3; see [LICENSE](LICENSE). Files modified for Super Plus carry a dated
+"AEmulator Super Plus" notice; the Plus, Sunset and original notices below are retained.
+
+Super Plus changes (2026-10-11):
+
+- Sony Flashtool `.ftf` / `.sin` import (`app/src/main/java/app/aemu/importer/SonySin.kt`); the SIN layouts
+  follow [Androxyde/Flashtool](https://github.com/Androxyde/Flashtool) (GPL-3.0).
+- ELF boot images (Sony `kernel.sin` / `fotakernel.sin`) in `BootImage.ramdisk`.
+- Application id `app.aemu.superplus` and the "AEmulator Super Plus" name.
+
+---
+
 # AEmulator Plus modification notice
 
 **AEmulator Plus** is a modified fork of

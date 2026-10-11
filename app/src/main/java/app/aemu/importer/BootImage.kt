@@ -1,3 +1,4 @@
+/* Modified for AEmulator Super Plus, 2026-10-11: Sony ELF boot images. GPL-3.0; see LICENSE and NOTICE.md. */
 package app.aemu.importer
 
 import org.tukaani.xz.LZMAInputStream
@@ -58,8 +59,32 @@ object BootImage {
             val rd = img.copyOfRange(off.toInt(), (off + len).toInt())
             return cpio(decompress(rd) ?: return null)
         }
+        // Sony kernel.sin / fotakernel.sin (2010-2013 Xperia): an ELF whose segments are the kernel and the ramdisk
+        if (img.size > 64 && img[0] == 0x7f.toByte() && String(img, 1, 3, Charsets.ISO_8859_1) == "ELF") fromElf(img)?.let { return it }
         // иначе — zImage со встроенным initramfs
         return fromZImage(img)
+    }
+
+    /** The program segment of a Sony ELF boot image that holds a (compressed) cpio with init.rc. */
+    private fun fromElf(img: ByteArray): List<CpioEntry>? {
+        val bb = ByteBuffer.wrap(img).order(if (img[5].toInt() == 2) ByteOrder.BIG_ENDIAN else ByteOrder.LITTLE_ENDIAN)
+        val is64 = img[4].toInt() == 2
+        val phOff = if (is64) bb.getLong(0x20) else bb.getInt(0x1C).toLong() and 0xffffffffL
+        val phSize = bb.getShort(if (is64) 0x36 else 0x2A).toInt() and 0xffff
+        val phNum = bb.getShort(if (is64) 0x38 else 0x2C).toInt() and 0xffff
+        if (phSize < (if (is64) 56 else 32) || phNum == 0 || phOff < 0 || phOff + phSize.toLong() * phNum > img.size) return null
+        var fallback: List<CpioEntry>? = null
+        for (i in 0 until phNum) {
+            val ph = (phOff + i.toLong() * phSize).toInt()
+            val off = if (is64) bb.getLong(ph + 8) else bb.getInt(ph + 4).toLong() and 0xffffffffL
+            val len = if (is64) bb.getLong(ph + 32) else bb.getInt(ph + 16).toLong() and 0xffffffffL
+            if (len < 6 || off < 0 || off + len > img.size) continue
+            val seg = img.copyOfRange(off.toInt(), (off + len).toInt())
+            val entries = runCatching { decompress(seg)?.let { cpio(it) } }.getOrNull() ?: continue
+            if (entries.any { it.name == "init.rc" }) return entries
+            if (fallback == null && entries.isNotEmpty()) fallback = nestedBoot(entries)
+        }
+        return fallback
     }
 
     private fun fromZImage(img: ByteArray): List<CpioEntry>? {

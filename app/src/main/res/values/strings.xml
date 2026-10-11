@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- создано app/l10n/gen.py, правьте langs/*.py -->
 <resources>
-    <string name="app_name" translatable="false">AEmulator Plus</string>
+    <string name="app_name" translatable="false">AEmulator Super Plus</string>
     <string name="channel_vm">Running system</string>
     <string name="vm_running">%1$s is running</string>
     <string name="vm_running_hint">Tap to return to the system screen</string>

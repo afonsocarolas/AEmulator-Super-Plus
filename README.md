@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="docs/assets/logo.png" width="128" alt="AEmulator Plus logo"/>
+<img src="docs/assets/logo.png" width="128" alt="AEmulator Super Plus logo"/>
 
-# AEmulator Plus
+# AEmulator Super Plus
 
 **Run classic Android firmware — HTC Sense, TouchWiz, MIUI, AOSP — on a modern phone. No root, no PC.**
 
@@ -12,11 +12,16 @@
 
 ---
 
-AEmulator Plus boots a real Android 2.3–7.x system image straight from a firmware file you already have: a recovery ZIP, an Odin archive or a Google factory image. It translates the old ARM code with a patched QEMU, emulates the kernel’s binder, draws with your phone’s GPU and plays sound through Android’s audio stack — everything runs inside a normal app.
+AEmulator Super Plus boots a real Android 2.3–7.x system image straight from a firmware file you already have: a recovery ZIP, an Odin archive, a Sony Flashtool FTF or a Google factory image. It translates the old ARM code with a patched QEMU, emulates the kernel’s binder, draws with your phone’s GPU and plays sound through Android’s audio stack — everything runs inside a normal app.
+
+## 🆕 New in Super Plus
+
+- **Sony Flashtool FTF support**: `.ftf` bundles and loose `.sin` files (SIN v1, v2, v3 incl. LZ4/MMCF maps, v4 tar). `system.sin` becomes the guest system, the ELF `kernel.sin` supplies the ramdisk, `fotakernel.sin` the recovery; modem, loader, TA and user data are skipped.
+- **Android 4.0.x AOSP fixes**: in progress.
 
 ## ✨ Features
 
-- Import almost any firmware format: CWM/TWRP ZIP, Samsung Odin `.tar.md5`, Google factory `.tgz`, `system.img`, OTA `system.new.dat.br`, Motorola `.sbf`, sparse images, EDL images, Spreadtrum `.pac`, HTC `.nbh`, HTC `RUU.exe`
+- Import almost any firmware format: CWM/TWRP ZIP, Samsung Odin `.tar.md5`, Google factory `.tgz`, `system.img`, OTA `system.new.dat.br`, Motorola `.sbf`, sparse images, EDL images, Spreadtrum `.pac`, HTC `.nbh`, HTC `RUU.exe`, Sony Flashtool `.ftf` and single `.sin` images (SIN v1–v4, ELF kernels)
 - Vendor skins work as shipped: HTC Sense, Samsung TouchWiz, MIUI, AOSP
 - Hardware graphics through the GL bridge, sound, touch and multitouch, network with a modern TLS proxy
 - Shared memory-card folder for APKs, music and photos
@@ -25,8 +30,8 @@ AEmulator Plus boots a real Android 2.3–7.x system image straight from a firmw
 
 ## 🚀 Quick start
 
-1. Download the APK from [Releases](https://github.com/somerandomusernam2/AEmulator-Plus/releases) and install it.
-2. Open AEmulator Plus → **Add firmware** and pick the file. Import takes a few minutes.
+1. Build the APK (see [Build from source](#️-build-from-source)) or download it from this fork's Releases page, and install it.
+2. Open AEmulator Super Plus → **Add firmware** and pick the file. Import takes a few minutes.
 3. Press **Start**. The first boot is slower: the system optimises its apps.
 4. Use the ⋮ menu for volume, power button and logs; the ⚙️ button opens app settings and language.
 
@@ -52,16 +57,16 @@ cd AEmulator-Plus
 
 ## 🙏 Credits
 
-AEmulator Plus grew out of the HTC Desire HD and HTC One M7 emulators by [the original author](https://t.me/istratiit_ech) — their engine made this project possible.
+AEmulator Super Plus grew out of the HTC Desire HD and HTC One M7 emulators by [the original author](https://t.me/istratiit_ech) — their engine made this project possible.
 
-This is a modified fork of [drel4/AEmulator-Sunset](https://github.com/drel4/AEmulator-Sunset), which is a modified fork of [uxazu/AEmulator](https://github.com/uxazu/AEmulator).
+This is a modified fork of [somerandomusernam2/AEmulator-Plus](https://github.com/somerandomusernam2/AEmulator-Plus), which is a modified fork of [drel4/AEmulator-Sunset](https://github.com/drel4/AEmulator-Sunset), which is a modified fork of [uxazu/AEmulator](https://github.com/uxazu/AEmulator).
 
 ## 🔗 Links
 
-- My fork: [somerandomusernam2/AEmulator-Plus](https://github.com/somerandomusernam2/AEmulator-Plus)
-- Upstream: [drel4/AEmulator-Sunset](https://github.com/drel4/AEmulator-Sunset)
+- Upstream: [somerandomusernam2/AEmulator-Plus](https://github.com/somerandomusernam2/AEmulator-Plus)
+- Sunset: [drel4/AEmulator-Sunset](https://github.com/drel4/AEmulator-Sunset)
 - Original: [uxazu/AEmulator](https://github.com/uxazu/AEmulator)
-- Author: [somerandomusername2](https://github.com/somerandomusernam2)
+- Plus author: [somerandomusername2](https://github.com/somerandomusernam2)
 - Original author: [t.me/istratiit_ech](https://t.me/istratiit_ech)
 
 ## 📄 License

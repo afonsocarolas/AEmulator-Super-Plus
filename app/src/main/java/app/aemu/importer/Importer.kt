@@ -1,4 +1,5 @@
 /* Modified for AEmulator Sunset, 2026-10-03: VM archive restore and boot retention.
+ * Modified for AEmulator Super Plus, 2026-10-11: Sony .ftf / .sin import.
  * GPL-3.0; see LICENSE and NOTICE.md. */
 package app.aemu.importer
 
@@ -43,6 +44,7 @@ import java.util.zip.GZIPInputStream
  *  - TAR / TAR.MD5 (Samsung Odin, TouchWiz), TWRP-бэкапы (.win), tar.gz/xz/bz2
  *  - Huawei dload/UPDATE.APP (packet chain, YAFFS2 system + boot/recovery images)
  *  - Acer flash package (*.bin / *.nb0: record table + YAFFS2 rootfs.img / system.img)
+ *  - Sony Flashtool .ftf (ZIP из .sin v1–v4: system, kernel (ELF), fotakernel) и отдельные .sin
  *  - system.img: ext2/3/4, в том числе sparse (и разбитый на части: system.img_sparsechunk.N, system_sparsechunkN, system.img.N, system.N, system_N …)
  *  - system.new.dat(.br) + system.transfer.list (OTA 5.x–6.x)
  *  - уже готовое дерево rootfs в tar.gz (например, из стендов HTC)
@@ -139,6 +141,10 @@ class Importer(
                     }
                 } finally { deleteTree(toolWork); source.delete() }
             }
+            // Sony .sin partition image (a member of an .ftf bundle, or picked on its own); v4 is a bare tar/gzip,
+            // so the name is checked before the archive probes below
+            name.endsWith(".sin", true) || (h.size > 4 && h[0].toInt() == 3 && String(h, 1, 3, Charsets.ISO_8859_1) == "SIN") ->
+                importSin(src, name)
             h.size > 4 && h[0] == 'P'.code.toByte() && h[1] == 'K'.code.toByte() && h[2].toInt() == 3 && h[3].toInt() == 4 -> {
                 if (ch != null) importZip(ch, name, depth) else throw IOException("zip without random access")
             }
@@ -662,6 +668,8 @@ class Importer(
                 }
                 base.equals("system.yaffs2.img", true) -> withEntrySource(zip, e) { importImage(it, "system") }
                 base.endsWith(".yaffs2.img", true) -> {} // CWM user-data/cache backups are not firmware.
+                // Sony Flashtool .ftf bundle: system.sin, kernel.sin, fotakernel.sin ...
+                base.endsWith(".sin", true) -> withSinSource(zip, e) { importSin(it, base) }
                 // boot.img at any depth; the shallowest valid one is taken after the loop
                 isBootName(base) -> bootEntries.add(n to e)
                 isRecoveryName(base) && e.size < 64_000_000 -> zip.getInputStream(e).use { takeRecovery(it, base) }
@@ -1117,6 +1125,56 @@ class Importer(
             }
             if (!gotSystem && pending.isEmpty()) log("no system found in RAR archive $name")
         }
+    }
+
+    /** Like [withEntrySource], but never deferred: a .sin must be unpacked before the importer knows what it holds. */
+    private fun withSinSource(zip: ZipFile, e: ZipArchiveEntry, block: (RandomSource) -> Unit) {
+        val ch = zipChannel
+        if (e.method == ZipArchiveEntry.STORED && ch != null) {
+            runCatching { zip.getRawInputStream(e).close() }
+            if (e.dataOffset > 0) { block(ChannelSource(ch, e.dataOffset, e.size)); return }
+        }
+        val t = spillEntry(zip, e)
+        try { FileChannel.open(t.toPath(), StandardOpenOption.READ).use { c -> block(ChannelSource(c)) } } finally { deleteTree(t.parentFile ?: t) }
+    }
+
+    /**
+     * Sony .sin (see [SonySin]): unpacked to the plain partition image, which then goes the usual way by partition:
+     * system -> guest /system, kernel/boot -> ramdisk (ELF or "ANDROID!"), fotakernel/recovery -> recovery, oem, vendor.
+     * Everything else in an .ftf (userdata, cache, modem, loader, TA units ...) is skipped.
+     */
+    private fun importSin(src: RandomSource, name: String) {
+        val base = name.replace('\\', '/').substringAfterLast('/')
+        val part = SonySin.partition(base)
+        val kind = SonySin.kind(part)
+        if (kind == SonySin.Kind.SKIP) { log("FTF: skipped $base ($part)"); return }
+        if (kind == SonySin.Kind.SYSTEM && gotSystem) { log("FTF: skipped $base, system already imported"); return }
+        onProgress("Unpacking Sony image $part", -1f)
+        val work = File(tmp, "sin-${System.nanoTime()}").apply { mkdirs() }
+        try {
+            val images = SonySin.unpack(src, work, base, { log(it) }) { cancelled }
+            log("FTF: $base -> $part, ${images.sumOf { it.length() } shr 20} MB")
+            when (kind) {
+                SonySin.Kind.BOOT -> takeBoot(images.first().readBytes())
+                SonySin.Kind.RECOVERY -> images.first().inputStream().use { takeRecovery(it, "$part.img") }
+                else -> {
+                    val chans = images.map { FileChannel.open(it.toPath(), StandardOpenOption.READ) }
+                    try {
+                        val srcs = chans.map { ChannelSource(it) }
+                        val img = when {
+                            srcs.all { SparseSource.probe(it) } -> SparseSource(srcs)
+                            srcs.size == 1 -> srcs[0]
+                            else -> throw IOException("$base: ${srcs.size} image parts that are not a sparse set")
+                        }
+                        when (kind) {
+                            SonySin.Kind.OEM -> importOem(img)
+                            SonySin.Kind.VENDOR -> importVendor(img)
+                            else -> importImage(img, "system")
+                        }
+                    } finally { chans.forEach { it.close() } }
+                }
+            }
+        } finally { deleteTree(work) }
     }
 
     private fun withEntrySource(zip: ZipFile, e: ZipArchiveEntry, block: (RandomSource) -> Unit) {

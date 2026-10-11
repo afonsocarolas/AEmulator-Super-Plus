@@ -10,5 +10,5 @@ import androidx.compose.ui.text.TextStyle
 
 @Composable
 fun SunsetTitle(style: TextStyle = LocalTextStyle.current, color: Color = Color.Unspecified) {
-    Text("AEmulator Plus", style = style, color = color)
+    Text("AEmulator Super Plus", style = style, color = color)
 }

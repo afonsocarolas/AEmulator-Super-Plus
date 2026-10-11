@@ -1935,7 +1935,7 @@ class TreeFixer(
         if (img.api < 24) return
         runCatching {
             val hostRoot = root.absoluteFile.toPath().normalize()
-            val rel = hostRoot.root.relativize(hostRoot)           // data/user/0/app.aemu.plus/files/images/<id>/root
+            val rel = hostRoot.root.relativize(hostRoot)           // data/user/0/app.aemu.superplus/files/images/<id>/root
             if (rel.nameCount < 2) return
             val alias = File(root, rel.toString())
             val target = hostRoot.toString()

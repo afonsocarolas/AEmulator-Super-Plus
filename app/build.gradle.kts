@@ -27,7 +27,7 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "app.aemu.plus" // Modified for AEmulator Plus, 2026-10-04: single variant, no clone
+        applicationId = "app.aemu.superplus" // Modified for AEmulator Plus, 2026-10-04: single variant, no clone; Super Plus, 2026-10-11: own package
         minSdk = 26
         // 28: гостевые бинарники запускаются из каталога данных приложения (W^X для targetSdk>=29)
         //noinspection ExpiredTargetSdkVersion
@@ -111,7 +111,7 @@ tasks.register<Copy>("copyReleaseApks") {
     dependsOn("assembleRelease")
     from(layout.buildDirectory.dir("outputs/apk/release")) {
         include("*.apk")
-        rename { "AEmulator-Plus-app.aemu.plus.apk" }
+        rename { "AEmulator-Super-Plus-app.aemu.superplus.apk" }
     }
     into(rootProject.layout.projectDirectory.dir("release-apks"))
 }
