@@ -329,4 +329,7 @@
     <string name="vs_microphone">Microfone</string>
     <string name="vs_microphone_sub">A VM ouve o microfone deste celular (gravadores de voz, som dos vídeos) enquanto está na tela. Desativado: as gravações ficam sem som. Aplica-se na próxima inicialização.</string>
     <string name="mic_permission_denied">Permissão do microfone negada: a VM grava silêncio. Conceda nas configurações do app no Android e reinicie completamente a VM para tentar de novo.</string>
+    <string name="lib3d_show_back">Mostrar a traseira</string>
+    <string name="lib3d_show_front">Mostrar a tela</string>
+    <string name="lib3d_tap_hint">Toque no celular para virá-lo</string>
 </resources>

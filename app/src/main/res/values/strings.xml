@@ -363,4 +363,7 @@
     <string name="vs_microphone">Microphone</string>
     <string name="vs_microphone_sub">The VM hears the microphone of this phone (voice recorders, video sound) while it is on screen. Off: recordings are silent. Applies at the next boot.</string>
     <string name="mic_permission_denied">Microphone permission denied: the VM records silence. Grant it in Android app settings and fully restart the VM to retry.</string>
+    <string name="lib3d_show_back">Show the back</string>
+    <string name="lib3d_show_front">Show the screen</string>
+    <string name="lib3d_tap_hint">Tap the phone to turn it over</string>
 </resources>

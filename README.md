@@ -22,7 +22,7 @@ AEmulator Super Plus boots a real Android 2.3–7.x system image straight from a
 - **Fake SIM cards**: operator name, MCC/MNC (presets of real networks, marked when the ROM has an APN for them), phone number, matching ICCID/IMSI, or an empty slot ("No SIM card").
 - **Wi-Fi**: signal strength setting and a list of nearby (locked) networks next to the emulated one.
 - **Camera video and microphone**: the host camera now records video (640×480) as well as photos, and the guest gets a microphone (the phone's, opt-in, only while the VM is on screen; otherwise silence) for voice recorders and video sound.
-- **3D firmware library**: your firmwares as a swipeable carousel of 3D phones of their era (hardware keys, capacitive keys or on-screen navigation) in the colours of their skin, tilting with the device; the list view is one tap away in the top bar.
+- **3D firmware library**: your firmwares as a swipeable carousel of 3D phones of their era (hardware keys, capacitive keys or on-screen navigation) showing their real last screen, with a metal edge, moving glass glare, floor reflection and ambient light in the skin's colours; tap a phone to flip it and see its back (camera, brand, specs). Tilts with the device; the list view is one tap away in the top bar.
 - **Android 4.0.x AOSP fixes**: in progress.
 
 ## ✨ Features

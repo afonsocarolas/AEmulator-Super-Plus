@@ -1,6 +1,6 @@
 /* Modified for AEmulator Sunset through 2026-10-03: natural-edge controls, cutout and
  * compatibility and camera integration.
- * Modified for AEmulator Super Plus, 2026-10-11: microphone permission. GPL-3.0; see LICENSE and NOTICE.md. */
+ * Modified for AEmulator Super Plus, 2026-10-11: microphone permission, library thumbnails. GPL-3.0; see LICENSE and NOTICE.md. */
 package app.aemu.ui
 
 import app.aemu.R
@@ -360,6 +360,7 @@ class VmActivity : ComponentActivity() {
     }
 
     override fun onPause() {
+        captureThumbnail()
         orientationListener?.disable()
         heldNavKeys.releaseAll()
         if (::vm.isInitialized) { vm.cameraVisible(false); vm.motionVisible(false) }
@@ -503,6 +504,29 @@ class VmActivity : ComponentActivity() {
                 Toast.makeText(this, r.fold({ getString(R.string.m_save_logs_ok, it) }, { getString(R.string.m_save_logs_fail, it.toString().take(160)) }), Toast.LENGTH_LONG).show()
             }
         }
+    }
+
+    /** The screen as it is now, for the phone of this firmware in the 3D library (only once the system has booted). */
+    private fun captureThumbnail() {
+        if (!::vm.isInitialized || vm.recoveryMode || vm.bootDoneAt == 0L) return
+        val g = guest
+        val dir = app.aemu.core.VmPaths(this, vm.img.id).dir
+        if (g.w <= 0 || g.h <= 0) return
+        if (g.passthrough && surfaceView.width > 0 && surfaceView.height > 0 && surfaceView.holder.surface.isValid) {
+            // PixelCopy scales into the (small) bitmap it is given
+            val bmp = android.graphics.Bitmap.createBitmap(270, (270L * g.h / g.w).toInt().coerceIn(1, 810), android.graphics.Bitmap.Config.ARGB_8888)
+            runCatching {
+                android.view.PixelCopy.request(surfaceView, bmp, { res ->
+                    thread {
+                        if (res == android.view.PixelCopy.SUCCESS && !app.aemu.core.Screenshot.isBlank(bmp)) app.aemu.core.Screenshot.saveThumbnail(dir, bmp)
+                        bmp.recycle()
+                    }
+                }, android.os.Handler(android.os.Looper.getMainLooper()))
+            }.onFailure { bmp.recycle() }
+            return
+        }
+        val fb = g.fb; val fmt = g.format; val pages = g.pages; val page = g.shownPage
+        thread { runCatching { app.aemu.core.Screenshot.thumbnailFromFb(dir, fb, g.w, g.h, fmt, pages, page) } }
     }
 
     /** raw fb0 → PNG in /sdcard/Pictures/AEmulator (see core/Screenshot.kt) */

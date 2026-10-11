@@ -1,3 +1,4 @@
+/* Modified for AEmulator Super Plus, 2026-10-11: library thumbnails. GPL-3.0; see LICENSE and NOTICE.md. */
 package app.aemu.core
 
 import android.content.ContentValues
@@ -80,6 +81,41 @@ object Screenshot {
 
     /** Same conversion as the reference extract.py (RGB565, little endian), generalised to the guest size and 32-bit formats. */
     private fun rawToPng(raw: File, w: Int, h: Int, format: Int, bpp: Int, page: Int): ByteArray? {
+        val bmp = rawToBitmap(raw, w, h, format, bpp, page) ?: return null
+        val out = ByteArrayOutputStream()
+        bmp.compress(Bitmap.CompressFormat.PNG, 100, out)
+        bmp.recycle()
+        return withDpi(out.toByteArray(), DPI)
+    }
+
+    /** File name of the library thumbnail in the image's folder (VmPaths.dir). */
+    const val THUMB = "thumb.jpg"
+    private const val THUMB_WIDTH = 270
+
+    /** Small JPEG of the guest screen for the 3D library (Super Plus); written atomically, never shown elsewhere. */
+    fun saveThumbnail(dir: File, bmp: Bitmap): Boolean = runCatching {
+        val h = (THUMB_WIDTH.toLong() * bmp.height / bmp.width.coerceAtLeast(1)).toInt().coerceIn(1, THUMB_WIDTH * 3)
+        val small = if (bmp.width == THUMB_WIDTH && bmp.height == h) bmp else Bitmap.createScaledBitmap(bmp, THUMB_WIDTH, h, true)
+        val tmp = File(dir, "$THUMB.tmp")
+        tmp.outputStream().use { small.compress(Bitmap.CompressFormat.JPEG, 85, it) }
+        if (small !== bmp) small.recycle()
+        tmp.renameTo(File(dir, THUMB))
+    }.getOrDefault(false)
+
+    /** An all-black frame (screen off, nothing drawn yet) is not worth keeping. */
+    fun isBlank(bmp: Bitmap): Boolean =
+        (0 until 16).all { i -> bmp.getPixel(bmp.width * (i % 4 + 1) / 5, bmp.height * (i / 4 + 1) / 5) and 0xffffff == 0 }
+
+    /** Thumbnail straight from the guest framebuffer (same formats as [take]). Blocking. */
+    fun thumbnailFromFb(dir: File, fb: File?, w: Int, h: Int, format: Int, pages: Int, page: Int): Boolean {
+        if (fb == null || !fb.isFile || w <= 0 || h <= 0) return false
+        val bmp = runCatching { rawToBitmap(fb, w, h, format, if (format == 0) 2 else 4, if (pages == 2) page else 0) }.getOrNull() ?: return false
+        val ok = !isBlank(bmp) && saveThumbnail(dir, bmp)
+        bmp.recycle()
+        return ok
+    }
+
+    private fun rawToBitmap(raw: File, w: Int, h: Int, format: Int, bpp: Int, page: Int): Bitmap? {
         val size = w.toLong() * h * bpp
         val data = ByteArray(size.toInt())
         RandomAccessFile(raw, "r").use { f ->
@@ -108,11 +144,7 @@ object Screenshot {
                 px[i] = -0x1000000 or ((v and 0xff) shl 16) or (v and 0xff00) or ((v shr 16) and 0xff)
             }
         }
-        val bmp = Bitmap.createBitmap(px, w, h, Bitmap.Config.ARGB_8888)
-        val out = ByteArrayOutputStream()
-        bmp.compress(Bitmap.CompressFormat.PNG, 100, out)
-        bmp.recycle()
-        return withDpi(out.toByteArray(), DPI)
+        return Bitmap.createBitmap(px, w, h, Bitmap.Config.ARGB_8888)
     }
 
     /** Inserts a pHYs chunk right after IHDR, like PIL's save(dpi=...). */
