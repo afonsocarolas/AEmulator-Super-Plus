@@ -1,3 +1,4 @@
+/* Modified for AEmulator Super Plus, 2026-10-11: Android 8.x (Treble) groundwork. GPL-3.0; see LICENSE and NOTICE.md. */
 package app.aemu.importer
 
 import android.content.Context
@@ -36,8 +37,10 @@ class Analyzer(private val ctx: Context, private val paths: VmPaths, private val
         val abi = all["ro.product.cpu.abi"] ?: "armeabi-v7a"
 
         // init.rc и его import’ы лежат в корне рамдиска
+        // Android 8+ (Treble): init also reads /vendor/etc/init and /odm/etc/init (hwservicemanager peers, HIDL HAL services)
+        val rcDirs = listOf("system/etc/init") + if (api >= 26) listOf("vendor/etc/init", "odm/etc/init") else emptyList()
         val rcFiles = (root.listFiles()?.filter { it.isFile && it.name.endsWith(".rc") }?.sortedBy { if (it.name == "init.rc") 0 else 1 } ?: emptyList()) +
-            (File(root, "system/etc/init").listFiles()?.filter { it.name.endsWith(".rc") } ?: emptyList())
+            rcDirs.flatMap { d -> File(root, d).listFiles()?.filter { it.name.endsWith(".rc") }?.sortedBy { it.name } ?: emptyList() }
         val rc = InitPlan.parse(rcFiles, all)
         // деревья из стендов HTC несут готовые dhd.bootclasspath / dhd.exports / dhd.dirs
         val dhdExports = File(root, "dhd.exports").takeIf { it.isFile }?.readLines()?.mapNotNull { l ->
@@ -72,7 +75,9 @@ class Analyzer(private val ctx: Context, private val paths: VmPaths, private val
             warnings += "No healthd in the boot plan (no /sbin/healthd; ramdisk missing from the import?): system_server will die in BatteryService."
         if (abi.startsWith("arm64")) warnings += "64-bit firmware: only 32-bit ARM is supported."
         if (abi.startsWith("x86") || abi.startsWith("mips")) warnings += "Firmware is not ARM ($abi) and will not run."
-        if (api >= 21) warnings += "Android ${release}: support is experimental (ART, SELinux)."
+        if (api >= 26) warnings += "Android ${release}: groundwork only. The engine has no /dev/hwbinder or /dev/vndbinder yet, " +
+            "so the Treble (HIDL) hardware services cannot start and boot is expected to stop early; the VM log shows where."
+        else if (api >= 21) warnings += "Android ${release}: support is experimental (ART, SELinux)."
 
         val density = all["ro.sf.lcd_density"]?.toIntOrNull() ?: 240
         val engine = Engine.forApi(api)
@@ -113,7 +118,7 @@ class Analyzer(private val ctx: Context, private val paths: VmPaths, private val
     }
 
     companion object {
-        const val VERSION = 15
+        const val VERSION = 16 // 16: Android 8.x (Treble) groundwork
 
         /**
          * Form-factor tag from ro.build.characteristics: if the line contains "tv" it is Google TV below API 18 and
@@ -163,7 +168,7 @@ class Analyzer(private val ctx: Context, private val paths: VmPaths, private val
          */
         fun effectiveApi(sdk: Int?, codename: String?, release: String?): Int {
             val code = codename?.trim()?.uppercase().orEmpty()
-            val preview = when (code) { "N" -> 24; "NMR1" -> 25; else -> null }
+            val preview = when (code) { "N" -> 24; "NMR1" -> 25; "O" -> 26; "OMR1" -> 27; else -> null }
             if (sdk == null) return preview ?: guessApi(release)
             return if (preview != null && sdk < preview) preview else sdk
         }
@@ -173,7 +178,8 @@ class Analyzer(private val ctx: Context, private val paths: VmPaths, private val
             rel.startsWith("2.2") -> 8; rel.startsWith("2.3") -> 10; rel.startsWith("4.0") -> 15
             rel.startsWith("4.1") -> 16; rel.startsWith("4.2") -> 17; rel.startsWith("4.3") -> 18
             rel.startsWith("4.4") -> 19; rel.startsWith("5.0") -> 21; rel.startsWith("5.1") -> 22
-            rel.startsWith("6") -> 23; rel.startsWith("7.0") || rel == "N" -> 24; rel.startsWith("7") -> 25; else -> 19
+            rel.startsWith("6") -> 23; rel.startsWith("7.0") || rel == "N" -> 24; rel.startsWith("7") -> 25
+            rel.startsWith("8.0") || rel == "O" -> 26; rel.startsWith("8.1") || rel == "OMR1" -> 27; else -> 19
         }
 
         /** Пересчитывает профиль образа новым анализатором, сохраняя настройки пользователя. */
@@ -195,6 +201,8 @@ class Analyzer(private val ctx: Context, private val paths: VmPaths, private val
     private fun synthBuildProp(): String {
         fun has(path: String) = File(root, path).exists()
         val (api, rel) = when {
+            // a VINTF manifest or the HIDL service manager exists only from Android 8.0 on
+            has("system/bin/hwservicemanager") || has("vendor/manifest.xml") || has("system/manifest.xml") -> 26 to "8.0"
             has("system/framework/arm64") || has("system/lib64") -> if (has("system/etc/init")) 24 to "7.0" else 23 to "6.0"
             has("system/framework/arm/boot.oat") || has("system/framework/arm") -> if (has("system/lib/libandroid_runtime.so") && has("system/bin/fingerprintd")) 23 to "6.0" else 21 to "5.0"
             has("system/framework/core-libart.jar") -> 19 to "4.4"
@@ -280,6 +288,10 @@ class Analyzer(private val ctx: Context, private val paths: VmPaths, private val
             api <= 10 -> listOf("core.jar", "bouncycastle.jar", "ext.jar", "framework.jar", "android.policy.jar", "services.jar", "core-junit.jar")
             api <= 18 -> listOf("core.jar", "core-junit.jar", "bouncycastle.jar", "ext.jar", "framework.jar", "framework2.jar", "telephony-common.jar", "voip-common.jar", "mms-common.jar", "android.policy.jar", "services.jar", "apache-xml.jar", "webviewchromium.jar")
             api <= 20 -> listOf("core.jar", "conscrypt.jar", "okhttp.jar", "core-junit.jar", "bouncycastle.jar", "ext.jar", "framework.jar", "framework2.jar", "telephony-common.jar", "voip-common.jar", "mms-common.jar", "android.policy.jar", "services.jar", "apache-xml.jar", "webviewchromium.jar")
+            // 8.x: libcore split (core-oj), legacy-test instead of core-junit, the HIDL Java bindings
+            api >= 26 -> listOf("core-oj.jar", "core-libart.jar", "conscrypt.jar", "okhttp.jar", "legacy-test.jar", "bouncycastle.jar", "ext.jar",
+                "framework.jar", "telephony-common.jar", "voip-common.jar", "ims-common.jar", "apache-xml.jar", "org.apache.http.legacy.boot.jar",
+                "android.hidl.base-V1.0-java.jar", "android.hidl.manager-V1.0-java.jar")
             else -> listOf("core-libart.jar", "conscrypt.jar", "okhttp.jar", "core-junit.jar", "bouncycastle.jar", "ext.jar", "framework.jar", "telephony-common.jar", "voip-common.jar", "ims-common.jar", "mms-common.jar", "android.policy.jar", "apache-xml.jar")
         }.filter { it in names }
         val vendorHints = listOf("twframework", "secframework", "sec_", "com.htc.", "HTC", "com.motorola", "com.lge", "lge", "semc", "com.sonyericsson", "miui", "com.qualcomm.qcrilhook", "qcom.fmradio", "framework-miui", "framework-ext", "cm.jar")

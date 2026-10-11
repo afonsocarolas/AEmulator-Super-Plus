@@ -17,6 +17,7 @@ AEmulator Super Plus boots a real Android 2.3–7.x system image straight from a
 ## 🆕 New in Super Plus
 
 - **Sony Flashtool FTF support**: `.ftf` bundles and loose `.sin` files (SIN v1, v2, v3 incl. LZ4/MMCF maps, v4 tar). `system.sin` becomes the guest system, the ELF `kernel.sin` supplies the ramdisk, `fotakernel.sin` the recovery; modem, loader, TA and user data are skipped.
+- **Android 8.0 / 8.1 groundwork** (not bootable yet): 8.x ROMs are recognized, their `/vendor` init scripts and HIDL services enter the boot plan (`hwservicemanager` and `vndservicemanager` start before SurfaceFlinger), and the VM log gets a Treble report of what the ROM expects. Booting needs `/dev/hwbinder` and `/dev/vndbinder` in the engine (`libbinderd_kk.so`, `libqemu_kk.so`), whose source is not available.
 - **Android 4.0.x AOSP fixes**: in progress.
 
 ## ✨ Features

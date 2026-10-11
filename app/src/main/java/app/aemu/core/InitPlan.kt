@@ -1,4 +1,5 @@
 /* Modified for AEmulator Sunset, 2026-10-03: optional firmware boot media services.
+ * Modified for AEmulator Super Plus, 2026-10-11: Android 8.x hwservicemanager / vndservicemanager.
  * GPL-3.0; see LICENSE and NOTICE.md. */
 package app.aemu.core
 
@@ -108,6 +109,10 @@ object InitPlan {
 
     private val ORDER = listOf(
         Rule("servicemanager", delayMs = 1500),
+        // Android 8+ (Treble): HIDL services register with hwservicemanager (/dev/hwbinder), vendor ones with
+        // vndservicemanager (/dev/vndbinder); both come up before surfaceflinger, which needs the graphics HALs
+        Rule("hwservicemanager", delayMs = 500, minApi = 26),
+        Rule("vndservicemanager", delayMs = 300, minApi = 26),
         Rule("surfaceflinger", delayMs = 2000, minApi = 14),
         Rule("healthd", delayMs = 500, minApi = 19),
         Rule("keystore", delayMs = 300),

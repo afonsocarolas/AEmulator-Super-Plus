@@ -1,5 +1,6 @@
 /* Modified for AEmulator Sunset through 2026-10-03: motion and boot-media bridges,
  * live library status; 2026-10-04: native boot of framework-less MMI/FTM builds.
+ * Modified for AEmulator Super Plus, 2026-10-11: Android 8.x Treble boot report.
  * GPL-3.0; upstream attribution retained in NOTICE.md. */
 package app.aemu.core
 
@@ -622,6 +623,7 @@ class GuestVm(val ctx: Context, val img: GuestImage, val lowPowerBoot: Boolean =
 
         // 5. службы гостя по плану из init.rc прошивки
         val basePlan = bootServices.filter { it.name !in InitPlan.NEVER_START }.ifEmpty { InitPlan.fallback(img, paths.root) }
+        TrebleReport.lines(img.api, paths.root, basePlan).forEach { log(it) }
         // Samsung 2.x boot logo + PowerOn sound (playlogos1); images imported earlier have no such entry in their saved plan
         val plan = if (File(paths.bin, BootMediaServices.LEGACY_LOGO_OFF).exists()) basePlan
                    else BootMediaServices.withLegacyLogo(basePlan, paths.root, img.api)
