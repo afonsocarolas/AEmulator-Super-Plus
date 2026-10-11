@@ -1,3 +1,4 @@
+/* Modified for AEmulator Super Plus, 2026-10-11: hidden setDetailedState reached by reflection (builds with the public SDK). GPL-3.0; see LICENSE and NOTICE.md. */
 package app.aemu.stub;
 
 import android.content.Context;
@@ -15,6 +16,10 @@ import java.net.InetAddress;
  * aemu-stubs.jar registers an Ethernet one). Same layout, but TYPE_WIFI / TRANSPORT_WIFI on "wlan0".
  */
 final class WifiNet extends NetworkAgent {
+    /** NetworkInfo.setDetailedState is hidden in the public SDK; same call through reflection */
+    private static void setDetailedState(NetworkInfo ni, NetworkInfo.DetailedState st) throws Exception {
+        NetworkInfo.class.getMethod("setDetailedState", NetworkInfo.DetailedState.class, String.class, String.class).invoke(ni, st, null, null);
+    }
     private static final int TYPE_WIFI = 1;
     private static final int TRANSPORT_WIFI = 1;
     // INTERNET, NOT_RESTRICTED, TRUSTED, NOT_VPN, NOT_METERED
@@ -35,7 +40,7 @@ final class WifiNet extends NetworkAgent {
     /** Tells ConnectivityService the network is gone; an agent cannot come back afterwards, a new one is registered instead. */
     void disconnect() {
         try {
-            info.setDetailedState(NetworkInfo.DetailedState.DISCONNECTED, null, null);
+            setDetailedState(info, NetworkInfo.DetailedState.DISCONNECTED);
             sendNetworkInfo(info);
         } catch (Throwable t) {
             Refl.log("disconnect: " + t);
@@ -78,7 +83,7 @@ final class WifiNet extends NetworkAgent {
                 new Class<?>[] { int.class, int.class, String.class, String.class },
                 Integer.valueOf(TYPE_WIFI), Integer.valueOf(0), "WIFI", "");
         if (ni == null) throw new IllegalStateException("no NetworkInfo");
-        ni.setDetailedState(NetworkInfo.DetailedState.CONNECTED, null, null);
+        setDetailedState(ni, NetworkInfo.DetailedState.CONNECTED);
         Refl.call(ni, "setIsAvailable", Boolean.TRUE);
 
         NetworkCapabilities nc = (NetworkCapabilities) Refl.newNoArg("android.net.NetworkCapabilities");

@@ -353,4 +353,8 @@
     <string name="vs_sim_number_sub">Shown in Settings › About phone › Status</string>
     <string name="vs_dual_sim">Dual SIM</string>
     <string name="vs_dual_sim_sub">A second fake SIM. Only firmware built for two SIMs uses it (many Samsung and MediaTek ones). Applies at the next boot.</string>
+    <string name="vs_wifi_signal">Signal strength</string>
+    <string name="vs_wifi_signal_sub">Bars the Wi-Fi icon shows</string>
+    <string name="vs_wifi_neighbors">Nearby networks</string>
+    <string name="vs_wifi_neighbors_sub">The Wi-Fi list also shows a few other networks (locked, they cannot be joined)</string>
 </resources>

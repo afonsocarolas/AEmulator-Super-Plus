@@ -1,3 +1,4 @@
+/* Modified for AEmulator Super Plus, 2026-10-11: neighbouring networks and signal level. GPL-3.0; see LICENSE and NOTICE.md. */
 package app.aemu.stub;
 
 import android.net.DhcpInfo;
@@ -125,18 +126,29 @@ final class WifiService extends Binder {
 
     private static WifiConfiguration readConfig(Parcel data) {
         if (data.dataAvail() < 4 || data.readInt() == 0) return null;
-        return WifiConfiguration.CREATOR.createFromParcel(data);
+        // CREATOR is hidden in the public SDK; the field is there at run time
+        try {
+            @SuppressWarnings("unchecked") android.os.Parcelable.Creator<WifiConfiguration> c =
+                (android.os.Parcelable.Creator<WifiConfiguration>) WifiConfiguration.class.getField("CREATOR").get(null);
+            return c.createFromParcel(data);
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     // ------------------------------------------------------------------ objects handed to apps
 
     private Object wifiSsid() {
+        return wifiSsid(cfg.ssid);
+    }
+
+    private static Object wifiSsid(String name) {
         Class<?> c = Refl.cls("android.net.wifi.WifiSsid");
         try {
-            Object s = Refl.callStatic(c, "createFromHex", Refl.hex(cfg.ssid.getBytes("UTF-8")));
+            Object s = Refl.callStatic(c, "createFromHex", Refl.hex(name.getBytes("UTF-8")));
             if (s != null) return s;
         } catch (Throwable ignored) { }
-        return Refl.callStatic(c, "createFromAsciiEncoded", cfg.ssid);
+        return Refl.callStatic(c, "createFromAsciiEncoded", name);
     }
 
     Object wifiInfo() {
@@ -164,20 +176,24 @@ final class WifiService extends Binder {
     }
 
     private Object scanResult() {
+        return scanResult(cfg.ssid, cfg.bssid, cfg.secured ? "[WPA2-PSK-CCMP][ESS]" : "[ESS]", cfg.rssi, cfg.frequency);
+    }
+
+    /** One entry of the scan list: our network, or one of the visible-but-locked neighbours (WifiConfig.neighbors). */
+    private static Object scanResult(String name, String bssid, String caps, int rssi, int frequency) {
         Class<?> ssidClass = Refl.cls("android.net.wifi.WifiSsid");
-        Object ssid = wifiSsid();
-        String caps = cfg.secured ? "[WPA2-PSK-CCMP][ESS]" : "[ESS]";
+        Object ssid = wifiSsid(name);
         Object r = null;
         if (ssidClass != null) {
             r = Refl.create("android.net.wifi.ScanResult",
                     new Class<?>[] { ssidClass, String.class, String.class, int.class, int.class, long.class },
-                    ssid, cfg.bssid, caps, Integer.valueOf(cfg.rssi),
-                    Integer.valueOf(cfg.frequency), Long.valueOf(SystemClock.elapsedRealtime() * 1000L));
+                    ssid, bssid, caps, Integer.valueOf(rssi),
+                    Integer.valueOf(frequency), Long.valueOf(SystemClock.elapsedRealtime() * 1000L));
         } else {
             // before 4.2: ScanResult(String ssid, String bssid, String caps, int level, int frequency)
             r = Refl.create("android.net.wifi.ScanResult",
                     new Class<?>[] { String.class, String.class, String.class, int.class, int.class },
-                    cfg.ssid, cfg.bssid, caps, Integer.valueOf(cfg.rssi), Integer.valueOf(cfg.frequency));
+                    name, bssid, caps, Integer.valueOf(rssi), Integer.valueOf(frequency));
         }
         if (r == null && ssidClass != null) {
             // newer frameworks: a longer constructor that starts with the same six parameters
@@ -188,8 +204,8 @@ final class WifiService extends Binder {
                     if (p.length < 6 || p[0] != ssidClass || p[1] != String.class || p[2] != String.class) continue;
                     Object[] a = new Object[p.length];
                     for (int i = 0; i < p.length; i++) a[i] = Refl.defaultFor(p[i]);
-                    a[0] = ssid; a[1] = cfg.bssid; a[2] = cfg.secured ? "[WPA2-PSK-CCMP][ESS]" : "[ESS]";
-                    a[3] = Integer.valueOf(cfg.rssi); a[4] = Integer.valueOf(cfg.frequency);
+                    a[0] = ssid; a[1] = bssid; a[2] = caps;
+                    a[3] = Integer.valueOf(rssi); a[4] = Integer.valueOf(frequency);
                     a[5] = Long.valueOf(SystemClock.elapsedRealtime() * 1000L);
                     try {
                         k.setAccessible(true);
@@ -202,11 +218,11 @@ final class WifiService extends Binder {
             }
         }
         if (r == null) return null;
-        Refl.setField(r, "SSID", cfg.ssid);
-        Refl.setField(r, "BSSID", cfg.bssid);
-        Refl.setField(r, "capabilities", cfg.secured ? "[WPA2-PSK-CCMP][ESS]" : "[ESS]");
-        Refl.setField(r, "level", Integer.valueOf(cfg.rssi));
-        Refl.setField(r, "frequency", Integer.valueOf(cfg.frequency));
+        Refl.setField(r, "SSID", name);
+        Refl.setField(r, "BSSID", bssid);
+        Refl.setField(r, "capabilities", caps);
+        Refl.setField(r, "level", Integer.valueOf(rssi));
+        Refl.setField(r, "frequency", Integer.valueOf(frequency));
         Refl.setField(r, "timestamp", Long.valueOf(SystemClock.elapsedRealtime() * 1000L));
         if (ssid != null) Refl.setField(r, "wifiSsid", ssid);
         return r;
@@ -315,6 +331,10 @@ final class WifiService extends Binder {
             List<Parcelable> list = new ArrayList<Parcelable>();
             Object r = enabled ? scanResult() : null;
             if (r instanceof Parcelable) list.add((Parcelable) r);
+            if (enabled) for (WifiConfig.Neighbor n : cfg.neighbors) {
+                Object o = scanResult(n.ssid, n.bssid, n.caps, n.rssi, n.frequency);
+                if (o instanceof Parcelable) list.add((Parcelable) o);
+            }
             writeList("getScanResults", list, reply);
         } else if (name.equals("getConfiguredNetworks")) {
             List<Parcelable> list = new ArrayList<Parcelable>();

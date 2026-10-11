@@ -1,5 +1,5 @@
 /* Modified for AEmulator Sunset, 2026-10-03: VM export, motion and host resolution.
- * Modified for AEmulator Super Plus, 2026-10-11: fake SIM card section.
+ * Modified for AEmulator Super Plus, 2026-10-11: fake SIM card section, Wi-Fi signal and neighbours.
  * GPL-3.0; upstream attribution retained in NOTICE.md. */
 package app.aemu.ui
 
@@ -280,6 +280,23 @@ private fun WifiFields(s: VmSettings, set: (VmSettings) -> Unit) {
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
         trailingIcon = { TextButton(onClick = { show = !show }) { Text(stringResource(if (show) R.string.vs_wifi_hide else R.string.vs_wifi_show)) } },
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp))
+    var open by remember { mutableStateOf(false) }
+    fun bars(n: Int) = "▂▄▆█".take(n) + "·".repeat(WifiEmu.MAX_BARS - n)
+    ListItem(
+        headlineContent = { Text(stringResource(R.string.vs_wifi_signal)) },
+        supportingContent = { Text(stringResource(R.string.vs_wifi_signal_sub)) },
+        trailingContent = {
+            Box {
+                TextButton(onClick = { open = true }) { Text(bars(s.wifiSignal)) }
+                DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                    for (n in WifiEmu.MAX_BARS downTo 1) DropdownMenuItem(text = { Text(bars(n)) }, onClick = { open = false; set(s.copy(wifiSignal = n)) })
+                }
+            }
+        },
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        modifier = Modifier.fillMaxWidth(),
+    )
+    Toggle(stringResource(R.string.vs_wifi_neighbors), stringResource(R.string.vs_wifi_neighbors_sub), s.wifiNeighbors) { set(s.copy(wifiNeighbors = it)) }
 }
 
 /** Disabled / 0° / 180° / no-gyroscope list for the host motion sensors. */

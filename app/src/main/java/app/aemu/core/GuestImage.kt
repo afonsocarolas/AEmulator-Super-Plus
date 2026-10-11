@@ -1,5 +1,5 @@
 /* Modified for AEmulator Sunset, 2026-10-03: persisted motion and host-display options.
- * Modified for AEmulator Super Plus, 2026-10-11: fake SIM card slots.
+ * Modified for AEmulator Super Plus, 2026-10-11: fake SIM card slots, Wi-Fi signal and neighbours.
  * GPL-3.0; see LICENSE and NOTICE.md. */
 package app.aemu.core
 
@@ -80,6 +80,10 @@ data class VmSettings(
     /** Second slot: only used with [dualSim] on firmware built for two SIMs. */
     val sim2: SimCard = SimCard(present = false),
     val dualSim: Boolean = false,
+    /** Bars the emulated Wi-Fi shows, 1..4 (see [WifiEmu.rssiFor]). */
+    val wifiSignal: Int = WifiEmu.MAX_BARS,
+    /** A scan also lists a few other (locked) networks nearby. */
+    val wifiNeighbors: Boolean = true,
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("width", width).put("height", height).put("density", density)
@@ -102,6 +106,7 @@ data class VmSettings(
         .put("hardware", hardware)
         .put("wifi", wifi).put("wifiSsid", wifiSsid).put("wifiPassword", wifiPassword)
         .put("sim", sim.toJson()).put("sim2", sim2.toJson()).put("dualSim", dualSim)
+        .put("wifiSignal", wifiSignal).put("wifiNeighbors", wifiNeighbors)
 
     companion object {
         /** Luhn-valid sample IMEI from the standard; the guest has no real modem */
@@ -211,6 +216,8 @@ data class VmSettings(
                 sim = SimCard.fromJson(o.optJSONObject("sim")),
                 sim2 = o.optJSONObject("sim2")?.let { SimCard.fromJson(it) } ?: d.sim2,
                 dualSim = o.optBoolean("dualSim", false),
+                wifiSignal = o.optInt("wifiSignal", d.wifiSignal).coerceIn(1, WifiEmu.MAX_BARS),
+                wifiNeighbors = o.optBoolean("wifiNeighbors", d.wifiNeighbors),
             )
         }
     }

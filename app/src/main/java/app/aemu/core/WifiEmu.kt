@@ -1,3 +1,4 @@
+/* Modified for AEmulator Super Plus, 2026-10-11: signal level and neighbouring networks. GPL-3.0; see LICENSE and NOTICE.md. */
 package app.aemu.core
 
 import java.io.ByteArrayOutputStream
@@ -85,9 +86,37 @@ object WifiEmu {
             setProperty("prefix", PREFIX.toString())
             setProperty("dns1", DNS1)
             setProperty("dns2", DNS2)
-            setProperty("rssi", "-48")
+            setProperty("rssi", rssiFor(s.wifiSignal).toString())
             setProperty("speed", "72")
             setProperty("frequency", "2437")
+            if (s.wifiNeighbors) setProperty("neighbors", neighbors(ssid).joinToString("\n"))
+        }
+    }
+
+    const val MAX_BARS = 4
+
+    /** dBm for [bars] of 4: Android's calculateSignalLevel maps -100..-55 dBm onto the bars, -48 is "full" (the old fixed value). */
+    fun rssiFor(bars: Int): Int = when (bars.coerceIn(1, MAX_BARS)) { 1 -> -84; 2 -> -74; 3 -> -63; else -> -48 }
+
+    private val NEIGHBOR_NAMES = listOf(
+        "TP-Link_3F2A", "NETGEAR57", "HUAWEI-B315-9C11", "Vodafone-2A1B", "MEO-48F0C3", "NOS-77D2", "Linksys04821",
+        "DIRECT-7b-HP OfficeJet", "Casa", "FRITZ!Box 7530 QX", "Livebox-61E0", "Guest WiFi",
+    )
+
+    /**
+     * 4-5 other networks "in range", the same ones every boot for a given network name: WPA2 (so they cannot be
+     * joined), weaker than ours, on the usual 2.4 and 5 GHz channels. Format of each line:
+     * ssid|bssid|capabilities|rssi|frequency (read by guest-wifi WifiConfig).
+     */
+    fun neighbors(ownSsid: String): List<String> {
+        val seed = MessageDigest.getInstance("SHA-1").digest(ownSsid.toByteArray(Charsets.UTF_8)).map { it.toInt() and 0xff }
+        val names = NEIGHBOR_NAMES.filter { it != ownSsid }.sortedBy { n -> (n.hashCode() xor seed[0] * 31 xor seed[1]) }
+        val count = 4 + seed[2] % 2
+        val freqs = listOf(2412, 2437, 2462, 5180, 5240, 5745)
+        return names.take(count).mapIndexed { i, n ->
+            val rssi = -58 - (seed[3 + i] % 30)
+            val caps = if (seed[8 + i] % 3 == 0) "[WPA-PSK-TKIP+CCMP][WPA2-PSK-TKIP+CCMP][WPS][ESS]" else "[WPA2-PSK-CCMP][ESS]"
+            "$n|${bssid(n)}|$caps|$rssi|${freqs[seed[13 + i] % freqs.size]}"
         }
     }
 

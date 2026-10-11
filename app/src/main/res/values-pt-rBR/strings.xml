@@ -319,4 +319,8 @@
     <string name="vs_sim_number_sub">Exibido em Configurações › Sobre o telefone › Status</string>
     <string name="vs_dual_sim">Dual SIM</string>
     <string name="vs_dual_sim_sub">Um segundo chip SIM falso. Só firmwares feitos para dois chips o usam (muitos Samsung e MediaTek). Aplica-se na próxima inicialização.</string>
+    <string name="vs_wifi_signal">Intensidade do sinal</string>
+    <string name="vs_wifi_signal_sub">Barras que o ícone de Wi-Fi mostra</string>
+    <string name="vs_wifi_neighbors">Redes próximas</string>
+    <string name="vs_wifi_neighbors_sub">A lista de Wi-Fi também mostra algumas outras redes (bloqueadas, não é possível se conectar)</string>
 </resources>

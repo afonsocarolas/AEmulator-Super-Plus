@@ -1,3 +1,4 @@
+/* Modified for AEmulator Super Plus, 2026-10-11: neighbouring networks and signal level. GPL-3.0; see LICENSE and NOTICE.md. */
 package app.aemu.stub;
 
 import java.io.File;
@@ -22,6 +23,16 @@ final class WifiConfig {
     final int rssi;
     final int speed;
     final int frequency;
+    /** Other networks in range: listed by a scan, locked (their passphrase is unknown, so joining fails). */
+    final java.util.List<Neighbor> neighbors = new java.util.ArrayList<Neighbor>();
+
+    static final class Neighbor {
+        final String ssid, bssid, caps;
+        final int rssi, frequency;
+        Neighbor(String ssid, String bssid, String caps, int rssi, int frequency) {
+            this.ssid = ssid; this.bssid = bssid; this.caps = caps; this.rssi = rssi; this.frequency = frequency;
+        }
+    }
 
     private WifiConfig(Properties p) {
         ssid = p.getProperty("ssid", "AEmulator-WiFi");
@@ -37,6 +48,13 @@ final class WifiConfig {
         rssi = num(p.getProperty("rssi"), -48);
         speed = num(p.getProperty("speed"), 72);
         frequency = num(p.getProperty("frequency"), 2437);
+        // "ssid|bssid|caps|rssi|frequency" entries separated by newlines (written by WifiEmu.kt)
+        String list = p.getProperty("neighbors", "");
+        for (String line : list.split("\n")) {
+            String[] f = line.split("\\|", -1);
+            if (f.length != 5 || f[0].length() == 0) continue;
+            neighbors.add(new Neighbor(f[0], f[1], f[2], num(f[3], -80), num(f[4], 2412)));
+        }
     }
 
     private static int num(String s, int d) {
