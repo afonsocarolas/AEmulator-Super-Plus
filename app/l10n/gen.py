@@ -11,7 +11,7 @@ from keys import KEYS  # noqa: E402
 # код языка → каталог ресурсов Android
 DIRS = {
     "en": "values", "ru": "values-ru", "uk": "values-uk", "de": "values-de", "fr": "values-fr",
-    "es": "values-es", "pt-BR": "values-pt-rBR", "it": "values-it", "pl": "values-pl", "tr": "values-tr",
+    "es": "values-es", "pt-BR": "values-pt-rBR", "pt-PT": "values-pt-rPT", "it": "values-it", "pl": "values-pl", "tr": "values-tr",
     "ar": "values-ar", "fa": "values-fa", "hi": "values-hi", "id": "values-in", "vi": "values-vi",
     "zh-CN": "values-zh-rCN", "ja": "values-ja", "ko": "values-ko",
 }
@@ -50,7 +50,12 @@ def main():
         existing = os.path.join(RES, d, "strings.xml")
         if os.path.isfile(existing):
             known = set(KEYS) | {"app_name"}
+            in_plurals = False   # Super Plus, 2026-10-11: multi-line <plurals> blocks were dropped
             for line in open(existing, encoding="utf-8"):
+                if in_plurals or re.search(r"<plurals\b", line):
+                    out.append(line.rstrip("\r\n"))
+                    in_plurals = "</plurals>" not in line
+                    continue
                 match = re.search(r'<string name="([^"]+)"', line)
                 if match and match.group(1) not in known:
                     out.append(line.rstrip("\r\n"))
@@ -66,7 +71,7 @@ def main():
     os.makedirs(os.path.join(RES, "xml"), exist_ok=True)
     with open(os.path.join(RES, "xml", "locales_config.xml"), "w", encoding="utf-8", newline="\n") as f:
         f.write("\n".join(xml))
-    print(f"готово: {len(DIRS)} языков, {len(KEYS)} строк")
+    print(f"done: {len(DIRS)} languages, {len(KEYS)} keys")  # ASCII: the Windows console cannot print Cyrillic
 
 
 if __name__ == "__main__":

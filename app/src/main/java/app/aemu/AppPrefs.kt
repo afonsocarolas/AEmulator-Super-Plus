@@ -21,6 +21,7 @@ object AppPrefs {
         "fr" to "Français",
         "es" to "Español",
         "pt-BR" to "Português (Brasil)",
+        "pt-PT" to "Português (Portugal)",
         "it" to "Italiano",
         "pl" to "Polski",
         "tr" to "Türkçe",
