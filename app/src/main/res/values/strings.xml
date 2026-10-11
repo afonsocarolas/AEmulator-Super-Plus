@@ -357,4 +357,7 @@
     <string name="vs_wifi_signal_sub">Bars the Wi-Fi icon shows</string>
     <string name="vs_wifi_neighbors">Nearby networks</string>
     <string name="vs_wifi_neighbors_sub">The Wi-Fi list also shows a few other networks (locked, they cannot be joined)</string>
+    <string name="lib3d_container">Container</string>
+    <string name="lib3d_show_list">Show as list</string>
+    <string name="lib3d_show_3d">Show as 3D phones</string>
 </resources>

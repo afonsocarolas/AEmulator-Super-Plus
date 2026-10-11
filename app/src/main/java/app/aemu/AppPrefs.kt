@@ -1,4 +1,5 @@
-/* Modified for AEmulator Sunset, 2026-10-03: cross-process display options. GPL-3.0. */
+/* Modified for AEmulator Sunset, 2026-10-03: cross-process display options.
+ * Modified for AEmulator Super Plus, 2026-10-11: 3D library preference. GPL-3.0. */
 package app.aemu
 
 import android.content.Context
@@ -77,6 +78,10 @@ object AppPrefs {
 
     fun autoCheckUpdates(ctx: Context): Boolean = sp(ctx).getBoolean("auto_check_updates", true)
     fun setAutoCheckUpdates(ctx: Context, v: Boolean) = sp(ctx).edit().putBoolean("auto_check_updates", v).apply()
+
+    /** Library shown as the 3D phone carousel (Super Plus) instead of the card list. */
+    fun library3d(ctx: Context): Boolean = sp(ctx).getBoolean("library_3d", true)
+    fun setLibrary3d(ctx: Context, v: Boolean) = sp(ctx).edit().putBoolean("library_3d", v).apply()
 
     fun lastUpdateCheck(ctx: Context): Long = sp(ctx).getLong("last_update_check", 0L)
     fun setLastUpdateCheck(ctx: Context, v: Long) = sp(ctx).edit().putLong("last_update_check", v).apply()

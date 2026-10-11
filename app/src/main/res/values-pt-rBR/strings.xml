@@ -323,4 +323,7 @@
     <string name="vs_wifi_signal_sub">Barras que o ícone de Wi-Fi mostra</string>
     <string name="vs_wifi_neighbors">Redes próximas</string>
     <string name="vs_wifi_neighbors_sub">A lista de Wi-Fi também mostra algumas outras redes (bloqueadas, não é possível se conectar)</string>
+    <string name="lib3d_container">Contêiner</string>
+    <string name="lib3d_show_list">Mostrar como lista</string>
+    <string name="lib3d_show_3d">Mostrar como celulares 3D</string>
 </resources>

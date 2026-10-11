@@ -1,5 +1,6 @@
 /* Modified for AEmulator Sunset through 2026-10-02: catalog, experimental
- * unlock, active-guest Open and temporary long-press LPM boot. GPL-3.0; see NOTICE.md. */
+ * unlock, active-guest Open and temporary long-press LPM boot.
+ * Modified for AEmulator Super Plus, 2026-10-11: 3D firmware library. GPL-3.0; see NOTICE.md. */
 package app.aemu.ui
 
 import android.Manifest
@@ -105,6 +106,8 @@ import app.aemu.R
 import androidx.compose.ui.res.stringResource
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.List
+import androidx.compose.material.icons.rounded.ViewAgenda
+import androidx.compose.material.icons.rounded.ViewCarousel
 import android.content.Context
 
 const val ACTION_BOOT = "app.aemu.BOOT"
@@ -171,6 +174,7 @@ fun Library(model: LibraryModel) {
     var help by remember { mutableStateOf(false) }
     var addMenu by remember { mutableStateOf(false) }
     var containerFrom by remember { mutableStateOf<GuestImage?>(null) }
+    var view3d by remember { mutableStateOf(app.aemu.AppPrefs.library3d(ctx)) }
     val scroll = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     val scope = rememberCoroutineScope()
@@ -215,6 +219,10 @@ fun Library(model: LibraryModel) {
             LargeFlexibleTopAppBar(
                 title = { SunsetTitle() },
                 actions = {
+                    IconButton(onClick = { view3d = !view3d; app.aemu.AppPrefs.setLibrary3d(ctx, view3d) }) {
+                        Icon(if (view3d) Icons.Rounded.ViewAgenda else Icons.Rounded.ViewCarousel,
+                            stringResource(if (view3d) R.string.lib3d_show_list else R.string.lib3d_show_3d))
+                    }
                     IconButton(onClick = { ctx.startActivity(Intent(ctx, RomCatalogActivity::class.java)) }) {
                         Icon(Icons.Rounded.List, stringResource(R.string.catalog_title))
                     }
@@ -234,7 +242,26 @@ fun Library(model: LibraryModel) {
     ) { pad ->
         Box(Modifier.fillMaxSize().padding(pad)) {
             if (images.isEmpty() && !imp.active) EmptyState(onHelp = { help = true })
-            LazyColumn(
+            if (view3d && images.isNotEmpty()) Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+                .padding(start = 16.dp, end = 16.dp, bottom = 120.dp)) {
+                StorageAccessCard()
+                if (!imp.active) FirmwareFolderCard(onImport = { f -> model.import(android.net.Uri.fromFile(f)) })
+                AnimatedVisibility(imp.active || imp.error != null || imp.done != null) {
+                    Box(Modifier.padding(bottom = 12.dp)) {
+                        ImportCard(imp, onCancel = model::cancelImport, onDismiss = model::dismissImport)
+                    }
+                }
+                // imported firmwares first, then the containers made from them
+                Library3D(
+                    images.filter { it.baseId.isEmpty() } + images.filter { it.baseId.isNotEmpty() },
+                    activeVmId,
+                    baseNameOf = { img -> images.firstOrNull { it.id == img.baseId }?.name },
+                    onStart = { img, lowPower -> VmActivity.start(ctx, img.id, lowPower = lowPower) },
+                    onSettings = { settingsFor = it },
+                    onRename = { renameFor = it },
+                    onDelete = { deleteFor = it },
+                )
+            } else LazyColumn(
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 120.dp),
             ) {
                 item { StorageAccessCard() }

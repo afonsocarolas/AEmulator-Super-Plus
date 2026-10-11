@@ -21,6 +21,7 @@ AEmulator Super Plus boots a real Android 2.3–7.x system image straight from a
 - **Own `/dev/hwbinder` and `/dev/vndbinder`** (experimental, Android 8+ only): the guest library `libaemuhwb.so` (`native/guestshim/hwbinder.c`) and the app's `HwBinderDaemon` implement the Treble binder devices without the closed engine. Still missing: file descriptors in transactions, reference counting, and the 64-bit format on the engine's `/dev/binder`.
 - **Fake SIM cards**: operator name, MCC/MNC (presets of real networks, marked when the ROM has an APN for them), phone number, matching ICCID/IMSI, or an empty slot ("No SIM card").
 - **Wi-Fi**: signal strength setting and a list of nearby (locked) networks next to the emulated one.
+- **3D firmware library**: your firmwares as a swipeable carousel of 3D phones of their era (hardware keys, capacitive keys or on-screen navigation) in the colours of their skin, tilting with the device; the list view is one tap away in the top bar.
 - **Android 4.0.x AOSP fixes**: in progress.
 
 ## ✨ Features
