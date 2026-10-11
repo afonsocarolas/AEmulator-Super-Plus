@@ -305,4 +305,18 @@
         <item quantity="many">%1$d de ROMs</item>
         <item quantity="other">%1$d ROMs</item>
     </plurals>
+    <string name="vs_sim_title">Chips SIM</string>
+    <string name="vs_sim_present">Chip SIM inserido</string>
+    <string name="vs_sim2_present">Segundo chip SIM inserido</string>
+    <string name="vs_sim_present_sub">Desativado: o slot fica vazio e o firmware mostra \"Sem chip\". Aplica-se na próxima inicialização.</string>
+    <string name="vs_sim_preset">Operadora</string>
+    <string name="vs_sim_preset_sub">Uma rede real, ou digite os códigos abaixo. ✓ = este firmware tem configurações de dados móveis (APN) para ela</string>
+    <string name="vs_sim_default">Padrão do firmware</string>
+    <string name="vs_sim_name">Nome da operadora</string>
+    <string name="vs_sim_code_error">O MCC tem 3 dígitos, o MNC 2 ou 3</string>
+    <string name="vs_sim_no_apn">Este firmware não tem configurações de dados móveis (APN) para esta operadora, então os dados móveis podem não conectar. Chamadas, SMS e Wi-Fi não são afetados.</string>
+    <string name="vs_sim_number">Número de telefone</string>
+    <string name="vs_sim_number_sub">Exibido em Configurações › Sobre o telefone › Status</string>
+    <string name="vs_dual_sim">Dual SIM</string>
+    <string name="vs_dual_sim_sub">Um segundo chip SIM falso. Só firmwares feitos para dois chips o usam (muitos Samsung e MediaTek). Aplica-se na próxima inicialização.</string>
 </resources>

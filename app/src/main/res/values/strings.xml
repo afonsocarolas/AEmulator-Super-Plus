@@ -339,4 +339,18 @@
     <string name="vm_rom_note">ROM note</string>
     <string name="vs_host_battery">Use host battery</string>
     <string name="vs_host_battery_sub">Match your device’s battery level and charging state.</string>
+    <string name="vs_sim_title">SIM cards</string>
+    <string name="vs_sim_present">SIM card inserted</string>
+    <string name="vs_sim2_present">Second SIM card inserted</string>
+    <string name="vs_sim_present_sub">Off: the slot is empty and the firmware shows \"No SIM card\". Applies at the next boot.</string>
+    <string name="vs_sim_preset">Operator</string>
+    <string name="vs_sim_preset_sub">A real network, or type the codes below. ✓ = this firmware has mobile data settings (APN) for it</string>
+    <string name="vs_sim_default">Firmware default</string>
+    <string name="vs_sim_name">Operator name</string>
+    <string name="vs_sim_code_error">The MCC has 3 digits, the MNC 2 or 3</string>
+    <string name="vs_sim_no_apn">This firmware has no mobile data settings (APN) for this operator, so mobile data may not connect. Calls, SMS and Wi-Fi are not affected.</string>
+    <string name="vs_sim_number">Phone number</string>
+    <string name="vs_sim_number_sub">Shown in Settings › About phone › Status</string>
+    <string name="vs_dual_sim">Dual SIM</string>
+    <string name="vs_dual_sim_sub">A second fake SIM. Only firmware built for two SIMs uses it (many Samsung and MediaTek ones). Applies at the next boot.</string>
 </resources>

@@ -1,3 +1,4 @@
+/* Modified for AEmulator Super Plus, 2026-10-11: configurable SIM card, empty SIM slot. GPL-3.0; see LICENSE and NOTICE.md. */
 package app.aemu.core
 
 import android.net.LocalSocket
@@ -27,12 +28,18 @@ class RilStub(
     private val api: Int = 19,
     private val baseband: String = VmSettings.DEFAULT_BASEBAND,
     networkType: Int = NetworkType.DEFAULT,
+    private val sim: SimCard = SimCard(),
 ) {
     @Volatile var answered = 0L
         private set
 
     private val server = UnixServer(paths.socket("rild"), "rild") { c -> serveOne(c) }
-    private val operator: Pair<String, String> by lazy { pickOperator() }   // mcc to mnc
+    /** the SIM as the modem reports it; blank settings resolve to the firmware's APN operator */
+    private val card: SimCards.Resolved by lazy { SimCards.resolve(sim, pickOperator()) }
+    private val operator: Pair<String, String> get() = card.mcc to card.mnc
+    private val simFiles: LegacySimIo.Files by lazy {
+        LegacySimIo.Files(SimCards.efIccid(card.iccid), SimCards.efSpn(card.operator), SimCards.efMsisdn(card.number), SimCards.efAd(card.mnc))
+    }
     /** Samsung's RIL.java reads an extra call type int (CallDetails) around isVoicePrivacy, on 2.3.6 and 4.x alike */
     private val samsung: Boolean by lazy {
         runCatching { File(paths.root, "system/build.prop").readText().lowercase().contains("ro.product.manufacturer=samsung") }
@@ -159,7 +166,8 @@ class RilStub(
         out = o
         if (api >= 14) unsol(o, UNSOL_RIL_CONNECTED, ints(RIL_VERSION))
         unsol(o, UNSOL_RADIO_STATE_CHANGED, le(0))
-        log("radio: telephony connected, operator ${operator.first}${operator.second}")
+        log(if (sim.present) "radio: telephony connected, SIM \"${card.operator}\" ${card.mcc}-${card.mnc}" +
+            (if (card.number.isNotEmpty()) ", number ${card.number}" else "") else "radio: telephony connected, no SIM card")
         val din = DataInputStream(c.inputStream)
         while (true) {
             val len = try { din.readInt() } catch (e: Exception) { break }
@@ -209,20 +217,23 @@ class RilStub(
 
     private fun handle(req: Int, args: ByteBuffer): Pair<Int, ByteArray> {
         val (mcc, mnc) = operator
+        val present = sim.present
         return when (req) {
             RIL_REQUEST_GET_SIM_STATUS -> 0 to simStatus()
             RIL_REQUEST_GET_CURRENT_CALLS -> 0 to callList()
             RIL_REQUEST_ANSWER -> { call = call?.let { it.first to CALL_ACTIVE }; 0 to ByteArray(0) }
             in HANGUPS -> { call = null; 0 to ByteArray(0) }
             RIL_REQUEST_LAST_CALL_FAIL_CAUSE -> 0 to ints(16)   // normal clearing
-            RIL_REQUEST_GET_IMSI -> 0 to str(mcc + mnc + "0123456789".take(15 - mcc.length - mnc.length))
+            RIL_REQUEST_GET_IMSI -> if (present) 0 to str(card.imsi) else E_GENERIC_FAILURE to ByteArray(0)
             RIL_REQUEST_SIGNAL_STRENGTH -> 0 to ints(20, 99, -1, -1, -1, -1, -1, 99, -1, -1, -1, -1, -1)
-            RIL_REQUEST_VOICE_REGISTRATION_STATE -> 0 to strs("1", "0001", "00000001", networkType.toString())
-            RIL_REQUEST_DATA_REGISTRATION_STATE -> 0 to strs("1", "0001", "00000001", networkType.toString(), "0", "1")
-            RIL_REQUEST_OPERATOR -> 0 to strs(OPERATOR_NAME, OPERATOR_NAME, mcc + mnc)
-            RIL_REQUEST_SETUP_DATA_CALL -> 0 to dataCall(single = true)
-            RIL_REQUEST_DATA_CALL_LIST -> 0 to dataCall(single = false)
-            RIL_REQUEST_SIM_IO -> LegacySimIo.handle(args).let { 0 to (le(it.sw1) + le(it.sw2) + str(it.hex)) }
+            // no SIM: the network still answers (emergency calls only), but there is no data registration
+            RIL_REQUEST_VOICE_REGISTRATION_STATE -> 0 to strs(if (present) "1" else "0", "0001", "00000001", networkType.toString())
+            RIL_REQUEST_DATA_REGISTRATION_STATE -> 0 to strs(if (present) "1" else "0", "0001", "00000001", networkType.toString(), "0", "1")
+            RIL_REQUEST_OPERATOR -> 0 to (if (present) strs(card.operator, card.operator.take(8), mcc + mnc) else nullStrs(3))
+            RIL_REQUEST_SETUP_DATA_CALL -> if (present) 0 to dataCall(single = true) else E_GENERIC_FAILURE to ByteArray(0)
+            RIL_REQUEST_DATA_CALL_LIST -> 0 to (if (present) dataCall(single = false) else noDataCalls())
+            RIL_REQUEST_SIM_IO -> if (!present) E_GENERIC_FAILURE to ByteArray(0)
+                else LegacySimIo.handle(args, simFiles).let { 0 to (le(it.sw1) + le(it.sw2) + str(it.hex)) }
             RIL_REQUEST_GET_IMEI -> 0 to str(imei)
             RIL_REQUEST_GET_IMEISV -> 0 to str(IMEISV)
             RIL_REQUEST_BASEBAND_VERSION -> 0 to str(baseband)
@@ -271,6 +282,13 @@ class RilStub(
 
     private fun simStatus(): ByteArray {
         val b = ByteArrayOutputStream()
+        if (!sim.present) {                               // empty slot: "No SIM card"
+            b.write(le(0)); b.write(le(0))                // CARDSTATE_ABSENT, universal PIN unknown
+            b.write(le(-1)); b.write(le(-1))              // no GSM/UMTS app, no CDMA app
+            if (api >= 16) b.write(le(-1))                // no IMS app
+            b.write(le(0))                                // no applications
+            return b.toByteArray()
+        }
         b.write(le(1)); b.write(le(0))                    // card present, universal PIN unknown
         b.write(le(0)); b.write(le(-1))                   // GSM/UMTS app 0, no CDMA app
         if (api >= 16) b.write(le(-1))                    // no IMS app (field added in 4.1)
@@ -282,6 +300,11 @@ class RilStub(
         b.write(le(0)); b.write(le(0)); b.write(le(0))    // pin1 replaced, pin1, pin2
         return b.toByteArray()
     }
+
+    /** RIL_REQUEST_DATA_CALL_LIST with no connection (2.3: plain count; 4.x: version + count) */
+    private fun noDataCalls(): ByteArray = if (api < 14) le(0) else le(RIL_VERSION) + le(0)
+
+    private fun nullStrs(n: Int) = le(n) + (1..n).fold(ByteArray(0)) { acc, _ -> acc + str(null) }
 
     private fun dataCall(single: Boolean): ByteArray {
         if (api < 14) {   // 2.3: cid, interface, address
@@ -337,7 +360,6 @@ class RilStub(
     companion object {
         private const val RIL_VERSION = 6
         private const val IFACE = "rmnet0"
-        private const val OPERATOR_NAME = "AEmulator"
         private const val UNSOL_RADIO_STATE_CHANGED = 1000
         private const val UNSOL_RESPONSE_CALL_STATE_CHANGED = 1001
         private const val UNSOL_RESPONSE_NEW_SMS = 1003

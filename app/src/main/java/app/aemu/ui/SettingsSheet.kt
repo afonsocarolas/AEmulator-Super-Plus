@@ -1,4 +1,5 @@
 /* Modified for AEmulator Sunset, 2026-10-03: VM export, motion and host resolution.
+ * Modified for AEmulator Super Plus, 2026-10-11: fake SIM card section.
  * GPL-3.0; upstream attribution retained in NOTICE.md. */
 package app.aemu.ui
 
@@ -164,6 +165,7 @@ fun SettingsSheet(img: GuestImage, onDismiss: () -> Unit, onSave: (VmSettings) -
                 TextButton(onClick = { s = s.copy(imei = VmSettings.randomImei()) }) { Text(stringResource(R.string.vs_random)) }
             }
             if (s.radio) NetworkTypePicker(s.networkType, img.api) { s = s.copy(networkType = it) }
+            if (s.radio) SimSection(img, s) { s = it }
 
             Spacer(Modifier.height(8.dp))
             Text(stringResource(R.string.vs_device_id), style = MaterialTheme.typography.titleMedium)
