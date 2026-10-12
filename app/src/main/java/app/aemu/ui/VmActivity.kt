@@ -1,6 +1,6 @@
 /* Modified for AEmulator Sunset through 2026-10-03: natural-edge controls, cutout and
  * compatibility and camera integration.
- * Modified for AEmulator Super Plus, 2026-10-11: microphone permission, library thumbnails; 2026-10-12: Holo navigation bar. GPL-3.0; see LICENSE and NOTICE.md. */
+ * Modified for AEmulator Super Plus, 2026-10-11: microphone permission, library thumbnails; 2026-10-12: Holo navigation bar, VM themes. GPL-3.0; see LICENSE and NOTICE.md. */
 package app.aemu.ui
 
 import app.aemu.R
@@ -165,6 +165,9 @@ class VmActivity : ComponentActivity() {
     private var tablet = false
     private val controlsTurns get() = app.aemu.core.HostDisplayPolicy.controlsTurns(tablet, hostUi.tabletNavbarRotation, windowTurns)
     private var hostUi by mutableStateOf(app.aemu.AppPrefs.HostUiOptions())
+    /** VM screen theme (core/VmTheme.kt): navigation bar look, frame behind the guest, screen corners */
+    private var vmTheme by mutableStateOf(app.aemu.core.VmThemes.BUILT_IN[1])
+    private var frameView: android.widget.ImageView? = null
     private var vmRoot: FrameLayout? = null
     private var cutoutInsets = androidx.core.graphics.Insets.NONE
     private var orientationListener: android.view.OrientationEventListener? = null
@@ -212,6 +215,7 @@ class VmActivity : ComponentActivity() {
             android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         windowTurns = windowManager.defaultDisplay.rotation
         hostUi = app.aemu.AppPrefs.hostUiOptions(this)
+        applyVmTheme()
         orientationListener = object : android.view.OrientationEventListener(this, android.hardware.SensorManager.SENSOR_DELAY_NORMAL) {
             override fun onOrientationChanged(angle: Int) {
                 if (angle != ORIENTATION_UNKNOWN) iconTurns = app.aemu.core.HostDisplayPolicy.iconTurns(angle, iconTurns)
@@ -278,7 +282,11 @@ class VmActivity : ComponentActivity() {
         guest.passthrough = useBridge
         box.addView(surfaceView, FrameLayout.LayoutParams(-1, -1))
         box.addView(guest, FrameLayout.LayoutParams(-1, -1))
+        // the theme's frame picture, behind the guest screen
+        frameView = android.widget.ImageView(this).apply { scaleType = android.widget.ImageView.ScaleType.CENTER_CROP }
+        root.addView(frameView, FrameLayout.LayoutParams(-1, -1))
         root.addView(box, FrameLayout.LayoutParams(0, 0))
+        applyVmTheme()
         val overlay = ComposeView(this).apply { setContent { AemuTheme(forceDark = true) { Overlay() } } }
         root.addView(overlay, FrameLayout.LayoutParams(-1, -1))
         setContentView(root)
@@ -354,6 +362,7 @@ class VmActivity : ComponentActivity() {
         super.onResume()
         windowTurns = windowManager.defaultDisplay.rotation
         hostUi = app.aemu.AppPrefs.hostUiOptions(this)
+        applyVmTheme()
         applyCutoutBarrier()
         orientationListener?.enable()
         if (::vm.isInitialized) { vm.cameraVisible(true); vm.motionVisible(true) }
@@ -503,6 +512,37 @@ class VmActivity : ComponentActivity() {
             runOnUiThread {
                 Toast.makeText(this, r.fold({ getString(R.string.m_save_logs_ok, it) }, { getString(R.string.m_save_logs_fail, it.toString().take(160)) }), Toast.LENGTH_LONG).show()
             }
+        }
+    }
+
+    /** Reads the selected VM theme: the bar follows [vmTheme]; the frame (colour or picture) and screen corners are set here. */
+    private fun applyVmTheme() {
+        val t = runCatching { app.aemu.core.VmThemes.selected(this) }.getOrDefault(app.aemu.core.VmThemes.BUILT_IN[1])
+        vmTheme = t
+        val root = vmRoot ?: return
+        root.setBackgroundColor(t.frameColor)
+        frameView?.let { fv ->
+            val bmp = app.aemu.core.VmThemes.imageFile(this, t)?.let { f ->
+                runCatching {
+                    // decoded no larger than about twice the screen: a phone photo would otherwise take tens of MB
+                    val o = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    android.graphics.BitmapFactory.decodeFile(f.path, o)
+                    val target = resources.displayMetrics.widthPixels.coerceAtLeast(1) * 2
+                    var sample = 1
+                    while (o.outWidth / (sample * 2) >= target) sample *= 2
+                    android.graphics.BitmapFactory.decodeFile(f.path, android.graphics.BitmapFactory.Options().apply { inSampleSize = sample })
+                }.getOrNull()
+            }
+            fv.setImageBitmap(bmp)
+            fv.visibility = if (bmp != null) View.VISIBLE else View.GONE
+        }
+        if (::box.isInitialized) {
+            val r = t.screenCorner * resources.displayMetrics.density
+            box.outlineProvider = object : android.view.ViewOutlineProvider() {
+                override fun getOutline(v: View, o: android.graphics.Outline) { o.setRoundRect(0, 0, v.width, v.height, r) }
+            }
+            box.clipToOutline = r > 0f
+            box.invalidateOutline()
         }
     }
 
@@ -963,10 +1003,10 @@ class VmActivity : ComponentActivity() {
                     box.post { updateGuestLayout?.invoke() }
                 }) {
                 Surface(
-                    color = if (hostUi.holoNavbar) Color.Black else if (hostUi.sunsetNavbar) Color(0xF20B0B0B) else MaterialTheme.colorScheme.secondaryContainer,
-                    shape = if (hostUi.sunsetNavbar || hostUi.holoNavbar) androidx.compose.ui.graphics.RectangleShape else androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
+                    color = vmTheme.barColor?.let { Color(it) } ?: MaterialTheme.colorScheme.secondaryContainer,
+                    shape = if (vmTheme.roundedBar) androidx.compose.foundation.shape.RoundedCornerShape(28.dp) else androidx.compose.ui.graphics.RectangleShape,
                     modifier = (if (sideways) Modifier.fillMaxHeight() else Modifier.fillMaxWidth())
-                        .padding(if (hostUi.sunsetNavbar || hostUi.holoNavbar) 0.dp else 6.dp),
+                        .padding(if (vmTheme.roundedBar) 6.dp else 0.dp),
                 ) {
                     ControlStrip(stripTurns, Modifier.navigationBarsPadding(), trackball = {
                         if (vm.settings.trackball) Column(
@@ -1011,7 +1051,7 @@ class VmActivity : ComponentActivity() {
                                         onClick = { vm.input.press(code) },
                                         onDown = { heldNavKeys.down(code) }, onUp = { heldNavKeys.up(code) },
                                         iconRotation = app.aemu.core.HostDisplayPolicy.controlIconRotation(tablet,
-                                            hostUi.tabletNavbarRotation, iconTurns, windowTurns), original = !hostUi.sunsetNavbar && !hostUi.holoNavbar, holo = hostUi.holoNavbar)
+                                            hostUi.tabletNavbarRotation, iconTurns, windowTurns), theme = vmTheme)
                                 }
                             }
                             if (stockRecovery && !(stripTurns == 1 || stripTurns == 2)) GoToRecoveryButton(sideways)

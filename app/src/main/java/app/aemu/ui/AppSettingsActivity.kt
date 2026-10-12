@@ -1,6 +1,6 @@
 /* Modified for AEmulator Sunset through 2026-10-03: host display options, fork links, catalog,
  * experimental unlock and local license/notices.
- * Modified for AEmulator Super Plus, 2026-10-12: Holo navigation bar style. GPL-3.0; see NOTICE.md. */
+ * Modified for AEmulator Super Plus, 2026-10-12: VM screen themes (replace the navigation bar style). GPL-3.0; see NOTICE.md. */
 package app.aemu.ui
 
 import android.content.Context
@@ -244,19 +244,8 @@ private fun AppSettings(onBack: () -> Unit, onRestyle: () -> Unit) {
                     Toggle(stringResource(R.string.as_cutout_barrier), stringResource(R.string.as_cutout_barrier_sub), hostUi.cutoutBarrier) {
                         hostUi = hostUi.copy(cutoutBarrier = it); AppPrefs.setHostUiOptions(ctx, hostUi)
                     }
-                    Text(stringResource(R.string.as_navbar_style), modifier = Modifier.padding(start = 16.dp, top = 8.dp))
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        // 0 original, 1 Sunset, 2 Holo (Android 4.x; flat black bar like Sunset)
-                        val style = if (hostUi.holoNavbar) 2 else if (hostUi.sunsetNavbar) 1 else 0
-                        listOf(R.string.as_navbar_original, R.string.as_navbar_sunset, R.string.as_navbar_holo).forEachIndexed { i, label ->
-                            Row(Modifier.weight(1f).clickable {
-                                hostUi = hostUi.copy(sunsetNavbar = i >= 1, holoNavbar = i == 2); AppPrefs.setHostUiOptions(ctx, hostUi)
-                            }, verticalAlignment = Alignment.CenterVertically) {
-                                RadioButton(selected = style == i, onClick = null)
-                                Text(stringResource(label))
-                            }
-                        }
-                    }
+                    // the navigation bar style is now part of the VM screen theme (Original, Sunset, 2.x-5.x eras, own themes)
+                    VmThemeRow()
                     Row_(Icons.Rounded.Translate, stringResource(R.string.as_language), langName) { langDialog = true }
                     Text(stringResource(R.string.as_theme), style = MaterialTheme.typography.labelLarge,
                         modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp))

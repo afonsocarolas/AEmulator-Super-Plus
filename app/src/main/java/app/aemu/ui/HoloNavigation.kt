@@ -1,6 +1,6 @@
 /* Modified for AEmulator Sunset through 2026-10-03: rounded highlights, icon rotation,
  * held guest keys.
- * Modified for AEmulator Super Plus, 2026-10-12: Holo (Android 4.x) style. GPL-3.0; original attribution is preserved in NOTICE.md. */
+ * Modified for AEmulator Super Plus, 2026-10-12: Holo (Android 4.x) style. Theme glyph sets (2.x-5.x), colours, size. GPL-3.0; original attribution is preserved in NOTICE.md. */
 package app.aemu.ui
 
 import android.content.Context
@@ -45,25 +45,36 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.graphics.Brush
 import app.aemu.core.NavButton
 import app.aemu.core.TrackballMotion
+import app.aemu.core.GlyphSet
+import app.aemu.core.VmTheme
+import app.aemu.core.VmThemes
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.Icon
 
+/**
+ * One key of the VM's navigation bar, drawn in the [theme]'s glyph set (the app's own Material and Sunset looks, or
+ * Gingerbread 2.x, Honeycomb 3.x, Holo 4.x, Lollipop 5.x) with its colours, size and press feedback.
+ */
 @Composable
-internal fun HoloNavButton(button: NavButton, label: String, onClick: () -> Unit, onDown: () -> Unit, onUp: () -> Unit, iconRotation: Float = 0f, original: Boolean = false, holo: Boolean = false) {
+internal fun HoloNavButton(button: NavButton, label: String, onClick: () -> Unit, onDown: () -> Unit, onUp: () -> Unit,
+                           iconRotation: Float = 0f, theme: VmTheme = VmThemes.BUILT_IN[1]) {
     val hostView = androidx.compose.ui.platform.LocalView.current
     val down by rememberUpdatedState(onDown)
     val up by rememberUpdatedState(onUp)
     var pressed by remember { mutableStateOf(false) }
     DisposableEffect(Unit) { onDispose { up() } }
-    // Holo (Android 4.x): a pressed key blooms with a soft Holo-blue glow instead of a grey box
+    val press = Color(theme.pressColor)
+    // a pressed key: a soft glow (Honeycomb, Holo, Lollipop) or a filled rounded box
     val pressBackground = when {
         !pressed -> Modifier
-        holo -> Modifier.background(Brush.radialGradient(listOf(HOLO_BLUE.copy(alpha = 0.65f), HOLO_BLUE.copy(alpha = 0.18f), Color.Transparent)), CircleShape)
-        else -> Modifier.background(Color.White.copy(alpha = 0.18f), RoundedCornerShape(8.dp))
+        theme.pressGlow -> Modifier.background(Brush.radialGradient(listOf(press, press.copy(alpha = press.alpha * 0.28f), Color.Transparent)), CircleShape)
+        else -> Modifier.background(press, RoundedCornerShape(8.dp))
     }
-    Box(Modifier.size(48.dp).then(pressBackground).semantics {
+    val keySize = 48.dp * theme.iconScale
+    Box(Modifier.size(keySize).then(pressBackground).semantics {
         contentDescription = label
         role = Role.Button
         // Accessibility activation remains one tap, without duplicating physical touches.
@@ -91,7 +102,7 @@ internal fun HoloNavButton(button: NavButton, label: String, onClick: () -> Unit
             try { tryAwaitRelease() } finally { pressed = false; release() }
         })
     }, contentAlignment = Alignment.Center) {
-        if (original) Icon(when (button) {
+        if (theme.glyphs == GlyphSet.MATERIAL) Icon(when (button) {
             NavButton.BACK -> Icons.AutoMirrored.Rounded.ArrowBack
             NavButton.HOME -> Icons.Rounded.Circle
             NavButton.RECENTS -> Icons.Rounded.CropSquare
@@ -105,93 +116,110 @@ internal fun HoloNavButton(button: NavButton, label: String, onClick: () -> Unit
             NavButton.LEFT -> Icons.Rounded.KeyboardArrowLeft
             NavButton.RIGHT -> Icons.Rounded.KeyboardArrowRight
             NavButton.CENTER -> Icons.Rounded.RadioButtonChecked
-        }, null, Modifier.size(24.dp).graphicsLayer { rotationZ = iconRotation })
-        else Canvas(Modifier.size(30.dp).graphicsLayer { rotationZ = iconRotation }) {
-            val s = size.width / 32f
-            fun p(x: Float, y: Float) = Offset(x * s, y * s)
-            val stroke = Stroke(2f * s, cap = StrokeCap.Square, join = StrokeJoin.Miter)
-            fun line(x: Float, y: Float, x1: Float, y1: Float) = drawLine(Color.White, p(x, y), p(x1, y1), 2f * s)
-            fun outline(vararg points: Pair<Float, Float>, close: Boolean = false) {
-                val path = Path().apply {
-                    moveTo(points[0].first * s, points[0].second * s)
-                    points.drop(1).forEach { lineTo(it.first * s, it.second * s) }
-                    if (close) close()
-                }
-                drawPath(path, Color.White, style = stroke)
-            }
-            // Holo glyph: a wide faint halo under a thin, slightly translucent line, like the ICS/JB system bar
-            fun holoPath(path: Path) {
-                drawPath(path, Color.White.copy(alpha = if (pressed) 0.35f else 0.16f), style = Stroke(5f * s, cap = StrokeCap.Round, join = StrokeJoin.Round))
-                drawPath(path, Color.White.copy(alpha = 0.92f), style = Stroke(1.7f * s, cap = StrokeCap.Square, join = StrokeJoin.Miter))
-            }
-            fun holoLines(vararg points: Pair<Float, Float>, close: Boolean = false) = holoPath(Path().apply {
-                moveTo(points[0].first * s, points[0].second * s)
-                points.drop(1).forEach { lineTo(it.first * s, it.second * s) }
-                if (close) close()
+        }, null, Modifier.size(24.dp * theme.iconScale).graphicsLayer { rotationZ = iconRotation },
+            tint = theme.iconColor?.let { Color(it) } ?: androidx.compose.material3.LocalContentColor.current)
+        else Canvas(Modifier.size(30.dp * theme.iconScale).graphicsLayer { rotationZ = iconRotation }) {
+            NavGlyphs.draw(this, button, theme, pressed)
+        }
+    }
+}
+
+/** The line drawings of the keys on a 32x32 grid, per glyph set; keys a set has no own shape for use the Sunset ones. */
+internal object NavGlyphs {
+    fun draw(scope: DrawScope, button: NavButton, theme: VmTheme, pressed: Boolean) = with(scope) {
+        val s = size.width / 32f
+        val ink = theme.iconColor?.let { Color(it) } ?: Color.White
+        val width = when (theme.glyphs) { GlyphSet.GINGERBREAD -> 2.6f; GlyphSet.HONEYCOMB -> 2.2f; GlyphSet.HOLO -> 1.7f; else -> 2f }
+        fun p(x: Float, y: Float) = Offset(x * s, y * s)
+        fun path(vararg pts: Pair<Float, Float>, close: Boolean = false) = Path().apply {
+            moveTo(pts[0].first * s, pts[0].second * s)
+            pts.drop(1).forEach { lineTo(it.first * s, it.second * s) }
+            if (close) close()
+        }
+        // a line, with the theme's soft halo under it (Honeycomb, Holo)
+        fun stroke(pathToDraw: Path) {
+            if (theme.halo) drawPath(pathToDraw, ink.copy(alpha = if (pressed) 0.35f else 0.16f), style = Stroke(5f * s, cap = StrokeCap.Round, join = StrokeJoin.Round))
+            drawPath(pathToDraw, ink.copy(alpha = if (theme.halo) 0.92f else 1f), style = Stroke(width * s, cap = StrokeCap.Square, join = StrokeJoin.Miter))
+        }
+        fun lines(vararg pts: Pair<Float, Float>, close: Boolean = false) = stroke(path(*pts, close = close))
+        fun fill(pathToFill: Path) = drawPath(pathToFill, ink)
+        fun ring(cx: Float, cy: Float, r: Float) = stroke(Path().apply { addOval(androidx.compose.ui.geometry.Rect(Offset(cx * s, cy * s), r * s)) })
+        fun magnifier() { ring(13f, 13f, 7f); lines(18.5f to 18.5f, 26f to 26f) }
+        // U-turn arrow: head pointing left, shaft along the top, half circle down the right (Gingerbread key, Holo bar)
+        fun uTurn() {
+            lines(11f to 6.5f, 5.5f to 12f, 11f to 17.5f)
+            stroke(Path().apply {
+                moveTo(5.5f * s, 12f * s); lineTo(19.5f * s, 12f * s)
+                arcTo(androidx.compose.ui.geometry.Rect(13f * s, 12f * s, 26f * s, 25f * s), -90f, 180f, false)
+                lineTo(9f * s, 25f * s)
             })
-            if (holo && button in HOLO_GLYPHS) {
-                when (button) {
-                    // the curved U-turn arrow: head pointing left, shaft along the top, a half circle down the right
-                    NavButton.BACK -> {
-                        holoLines(11f to 6.5f, 5.5f to 12f, 11f to 17.5f)
-                        holoPath(Path().apply {
-                            moveTo(5.5f * s, 12f * s)
-                            lineTo(19.5f * s, 12f * s)
-                            arcTo(androidx.compose.ui.geometry.Rect(13f * s, 12f * s, 26f * s, 25f * s), -90f, 180f, false)
-                            lineTo(9f * s, 25f * s)
-                        })
-                    }
-                    // a wide house: roof with a small overhang, flat walls
-                    NavButton.HOME -> {
-                        holoLines(4.5f to 16f, 16f to 8f, 27.5f to 16f)
-                        holoLines(8f to 13.5f, 8f to 25.5f, 24f to 25.5f, 24f to 13.5f)
-                    }
-                    // two windows: the front one, and the edges of the one behind it, up and to the right
-                    else -> {
-                        holoLines(6f to 11f, 21f to 11f, 21f to 26f, 6f to 26f, close = true)
-                        holoLines(10.5f to 11f, 10.5f to 6f, 26f to 6f, 26f to 21.5f, 21f to 21.5f)
-                    }
-                }
-                return@Canvas
+        }
+        fun windows() {
+            lines(6f to 11f, 21f to 11f, 21f to 26f, 6f to 26f, close = true)
+            lines(10.5f to 11f, 10.5f to 6f, 26f to 6f, 26f to 21.5f, 21f to 21.5f)
+        }
+        val own: Boolean = when (theme.glyphs) {
+            // Gingerbread 2.x: the hardware key icons - curved back, solid house, three menu bars, magnifier
+            GlyphSet.GINGERBREAD -> when (button) {
+                NavButton.BACK -> { uTurn(); true }
+                NavButton.HOME -> { fill(path(4f to 16f, 16f to 6f, 28f to 16f, 25f to 16f, 25f to 26f, 7f to 26f, 7f to 16f, close = true)); true }
+                NavButton.MENU -> { for (y in listOf(8f, 14.5f, 21f)) drawRect(ink, p(7f, y), androidx.compose.ui.geometry.Size(18f * s, 3.5f * s)); true }
+                NavButton.SEARCH -> { magnifier(); true }
+                else -> false
             }
-            when (button) {
-                NavButton.BACK -> {
-                    // Holo's thin bent arrow, not the filled Material "undo" arrow.
-                    outline(13f to 9f, 6f to 16f, 13f to 23f)
-                    outline(6f to 16f, 24f to 16f, 24f to 23f)
-                }
-                NavButton.HOME -> outline(6f to 16f, 16f to 8f, 26f to 16f, 26f to 25f, 6f to 25f, close = true)
-                NavButton.RECENTS -> {
-                    outline(10f to 10f, 10f to 6f, 26f to 6f, 26f to 21f, 22f to 21f)
-                    outline(6f to 11f, 21f to 11f, 21f to 26f, 6f to 26f, close = true)
-                }
-                NavButton.MENU -> for (y in listOf(7f, 14f, 21f)) {
-                    drawRect(Color.White, p(14f, y), androidx.compose.ui.geometry.Size(4f * s, 4f * s))
-                }
-                NavButton.SEARCH -> { drawCircle(Color.White, 7f * s, p(13f, 13f), style = stroke); line(18f, 18f, 26f, 26f) }
-                NavButton.POWER -> { drawArc(Color.White, -55f, 290f, false, p(6f, 6f), androidx.compose.ui.geometry.Size(20f * s, 20f * s), style = stroke); line(16f, 3f, 16f, 15f) }
-                NavButton.VOLUME_DOWN, NavButton.VOLUME_UP -> {
-                    outline(5f to 13f, 10f to 13f, 16f to 8f, 16f to 24f, 10f to 19f, 5f to 19f, close = true)
-                    line(21f, 16f, 29f, 16f)
-                    if (button == NavButton.VOLUME_UP) line(25f, 12f, 25f, 20f)
-                }
-                NavButton.UP -> outline(8f to 21f, 16f to 12f, 24f to 21f)
-                NavButton.DOWN -> outline(8f to 11f, 16f to 20f, 24f to 11f)
-                NavButton.LEFT -> outline(21f to 8f, 12f to 16f, 21f to 24f)
-                NavButton.RIGHT -> outline(11f to 8f, 20f to 16f, 11f to 24f)
-                NavButton.CENTER -> drawCircle(Color.White, 7f * s, p(16f, 16f), style = stroke)
+            // Honeycomb 3.x: the angular "Tron" keys - hooked back arrow, tall house, stacked windows
+            GlyphSet.HONEYCOMB -> when (button) {
+                NavButton.BACK -> { lines(12f to 9f, 5f to 16f, 12f to 23f); lines(5f to 16f, 25f to 16f, 25f to 7f); true }
+                NavButton.HOME -> { lines(6f to 14f, 16f to 5f, 26f to 14f); lines(9f to 12f, 9f to 27f, 23f to 27f, 23f to 12f); true }
+                NavButton.RECENTS -> { windows(); true }
+                else -> false
             }
+            // Holo 4.x: the ICS/JB system bar
+            GlyphSet.HOLO -> when (button) {
+                NavButton.BACK -> { uTurn(); true }
+                NavButton.HOME -> { lines(4.5f to 16f, 16f to 8f, 27.5f to 16f); lines(8f to 13.5f, 8f to 25.5f, 24f to 25.5f, 24f to 13.5f); true }
+                NavButton.RECENTS -> { windows(); true }
+                else -> false
+            }
+            // Lollipop 5.x: triangle, circle, square; menu as three dots
+            GlyphSet.LOLLIPOP -> when (button) {
+                NavButton.BACK -> { lines(22f to 7f, 8f to 16f, 22f to 25f, close = true); true }
+                NavButton.HOME -> { ring(16f, 16f, 8f); true }
+                NavButton.RECENTS -> { lines(8.5f to 8.5f, 23.5f to 8.5f, 23.5f to 23.5f, 8.5f to 23.5f, close = true); true }
+                NavButton.MENU -> { for (y in listOf(9f, 16f, 23f)) drawCircle(ink, 2.2f * s, p(16f, y)); true }
+                NavButton.SEARCH -> { magnifier(); true }
+                else -> false
+            }
+            else -> false
+        }
+        if (own) return@with
+        // Sunset outlines (also every key an era set leaves to them)
+        when (button) {
+            NavButton.BACK -> { lines(13f to 9f, 6f to 16f, 13f to 23f); lines(6f to 16f, 24f to 16f, 24f to 23f) }
+            NavButton.HOME -> lines(6f to 16f, 16f to 8f, 26f to 16f, 26f to 25f, 6f to 25f, close = true)
+            NavButton.RECENTS -> { lines(10f to 10f, 10f to 6f, 26f to 6f, 26f to 21f, 22f to 21f); lines(6f to 11f, 21f to 11f, 21f to 26f, 6f to 26f, close = true) }
+            NavButton.MENU -> for (y in listOf(7f, 14f, 21f)) drawRect(ink, p(14f, y), androidx.compose.ui.geometry.Size(4f * s, 4f * s))
+            NavButton.SEARCH -> magnifier()
+            NavButton.POWER -> {
+                stroke(Path().apply { arcTo(androidx.compose.ui.geometry.Rect(6f * s, 6f * s, 26f * s, 26f * s), -55f, 290f, true) })
+                lines(16f to 3f, 16f to 15f)
+            }
+            NavButton.VOLUME_DOWN, NavButton.VOLUME_UP -> {
+                lines(5f to 13f, 10f to 13f, 16f to 8f, 16f to 24f, 10f to 19f, 5f to 19f, close = true)
+                lines(21f to 16f, 29f to 16f)
+                if (button == NavButton.VOLUME_UP) lines(25f to 12f, 25f to 20f)
+            }
+            NavButton.UP -> lines(8f to 21f, 16f to 12f, 24f to 21f)
+            NavButton.DOWN -> lines(8f to 11f, 16f to 20f, 24f to 11f)
+            NavButton.LEFT -> lines(21f to 8f, 12f to 16f, 21f to 24f)
+            NavButton.RIGHT -> lines(11f to 8f, 20f to 16f, 11f to 24f)
+            NavButton.CENTER -> ring(16f, 16f, 7f)
         }
     }
 }
 
 /** Single-finger rolling surface; cancelling/multitouch never generates a click.
  * It lives above the nav/inset area and consumes its own stream, not guest touch. */
-/** Holo blue (#33B5E5), the accent of Android 4.x. */
-private val HOLO_BLUE = Color(0xFF33B5E5)
-/** Keys the Holo style draws in its own Android 4.x shapes; the others keep the Sunset outlines. */
-private val HOLO_GLYPHS = setOf(NavButton.BACK, NavButton.HOME, NavButton.RECENTS)
-
 internal class TrackballView(context: Context) : View(context) {
     var motion = TrackballMotion(18f)
     var dpad = false

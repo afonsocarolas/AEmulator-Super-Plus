@@ -1,5 +1,5 @@
 /* Modified for AEmulator Sunset, 2026-10-03: cross-process display options.
- * Modified for AEmulator Super Plus, 2026-10-11: 3D library preference; 2026-10-12: Holo navigation bar. GPL-3.0. */
+ * Modified for AEmulator Super Plus, 2026-10-11: 3D library preference; 2026-10-12: Holo navigation bar, VM themes. GPL-3.0. */
 package app.aemu
 
 import android.content.Context
