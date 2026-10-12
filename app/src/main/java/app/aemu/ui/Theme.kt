@@ -12,16 +12,19 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 // Modified for AEmulator Sunset on 2026-09-30: sunset-orange Material 3 palette.
+// Modified for AEmulator Super Plus on 2026-10-12: interface style (pure black, corners, font, text size, motion), Android color theme.
 private val Light = lightColorScheme(
     primary = Color(0xFFF4511E), onPrimary = Color.White,
     primaryContainer = Color(0xFFFFDBCF), onPrimaryContainer = Color(0xFF3B0900),
@@ -47,13 +50,50 @@ private val Dark = darkColorScheme(
     surfaceContainerHighest = Color(0xFF3B322F), surfaceContainerLow = Color(0xFF211A17),
 )
 
-private val AppShapes = Shapes(
-    extraSmall = RoundedCornerShape(8.dp),
-    small = RoundedCornerShape(12.dp),
-    medium = RoundedCornerShape(20.dp),
-    large = RoundedCornerShape(28.dp),
-    extraLarge = RoundedCornerShape(36.dp),
+// Super Plus: Android color theme from the Android brand colors - green #3DDC84, navy #073042, light blue #D7EFFE.
+val AndroidGreen = Color(0xFF3DDC84)
+
+private val AndroidLight = lightColorScheme(
+    primary = Color(0xFF006D3D), onPrimary = Color.White,
+    primaryContainer = AndroidGreen, onPrimaryContainer = Color(0xFF00210F),
+    secondary = Color(0xFF073042), onSecondary = Color.White,
+    secondaryContainer = Color(0xFFD7EFFE), onSecondaryContainer = Color(0xFF073042),
+    tertiary = Color(0xFF1A73E8), onTertiary = Color.White,
+    tertiaryContainer = Color(0xFFD8E2FF), onTertiaryContainer = Color(0xFF001A41),
+    background = Color(0xFFF6FBF4), surface = Color(0xFFF6FBF4),
+    surfaceContainerLow = Color(0xFFF0F5EE), surfaceContainer = Color(0xFFEAF0E8),
+    surfaceContainerHigh = Color(0xFFE4EAE3), surfaceContainerHighest = Color(0xFFDFE4DD),
+    error = Color(0xFFBA1A1A),
 )
+
+private val AndroidDark = darkColorScheme(
+    primary = AndroidGreen, onPrimary = Color(0xFF00391C),
+    primaryContainer = Color(0xFF00522C), onPrimaryContainer = Color(0xFF8CF9B0),
+    secondary = Color(0xFFAFCBDA), onSecondary = Color(0xFF073042),
+    secondaryContainer = Color(0xFF1E4A5E), onSecondaryContainer = Color(0xFFD7EFFE),
+    tertiary = Color(0xFFAEC6FF), onTertiary = Color(0xFF002E69),
+    tertiaryContainer = Color(0xFF00458F), onTertiaryContainer = Color(0xFFD8E2FF),
+    background = Color(0xFF06161E), surface = Color(0xFF06161E),
+    surfaceContainerLow = Color(0xFF0B1F29), surfaceContainer = Color(0xFF0F2530),
+    surfaceContainerHigh = Color(0xFF16303C), surfaceContainerHighest = Color(0xFF1E3A47),
+)
+
+/** Corner radii (extraSmall..extraLarge) for each interface corner style; Round is the original look. */
+private fun appShapes(corners: Int): Shapes {
+    val r = when (corners) {
+        app.aemu.AppPrefs.CORNERS_SHARP -> listOf(2, 4, 6, 8, 10)
+        app.aemu.AppPrefs.CORNERS_SOFT -> listOf(4, 8, 12, 16, 20)
+        app.aemu.AppPrefs.CORNERS_EXTRA -> listOf(12, 18, 28, 36, 48)
+        else -> listOf(8, 12, 20, 28, 36)
+    }
+    return Shapes(
+        extraSmall = RoundedCornerShape(r[0].dp),
+        small = RoundedCornerShape(r[1].dp),
+        medium = RoundedCornerShape(r[2].dp),
+        large = RoundedCornerShape(r[3].dp),
+        extraLarge = RoundedCornerShape(r[4].dp),
+    )
+}
 
 private val base = Typography()
 private val AppType = base.copy(
@@ -62,6 +102,43 @@ private val AppType = base.copy(
     headlineMedium = base.headlineMedium.copy(fontWeight = FontWeight.SemiBold),
     titleLarge = base.titleLarge.copy(fontWeight = FontWeight.SemiBold),
     labelLarge = base.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+)
+
+private fun TextStyle.styled(family: FontFamily?, scale: Float) = copy(
+    fontFamily = family ?: fontFamily,
+    fontSize = if (fontSize.isSp) fontSize * scale else fontSize,
+    lineHeight = if (lineHeight.isSp) lineHeight * scale else lineHeight,
+)
+
+/** [AppType] in the chosen interface font, every style scaled by the chosen text size. */
+private fun appTypography(font: Int, scale: Float): Typography {
+    val family = when (font) {
+        app.aemu.AppPrefs.FONT_SERIF -> FontFamily.Serif
+        app.aemu.AppPrefs.FONT_MONO -> FontFamily.Monospace
+        else -> null
+    }
+    if (family == null && scale == 1f) return AppType
+    val t = AppType
+    return Typography(
+        displayLarge = t.displayLarge.styled(family, scale), displayMedium = t.displayMedium.styled(family, scale),
+        displaySmall = t.displaySmall.styled(family, scale), headlineLarge = t.headlineLarge.styled(family, scale),
+        headlineMedium = t.headlineMedium.styled(family, scale), headlineSmall = t.headlineSmall.styled(family, scale),
+        titleLarge = t.titleLarge.styled(family, scale), titleMedium = t.titleMedium.styled(family, scale),
+        titleSmall = t.titleSmall.styled(family, scale), bodyLarge = t.bodyLarge.styled(family, scale),
+        bodyMedium = t.bodyMedium.styled(family, scale), bodySmall = t.bodySmall.styled(family, scale),
+        labelLarge = t.labelLarge.styled(family, scale), labelMedium = t.labelMedium.styled(family, scale),
+        labelSmall = t.labelSmall.styled(family, scale),
+    )
+}
+
+/** Pure black (AMOLED) dark scheme: black background, containers pulled towards black but still tinted. */
+private fun androidx.compose.material3.ColorScheme.pureBlack() = copy(
+    background = Color.Black, surface = Color.Black, surfaceDim = Color.Black,
+    surfaceContainerLowest = Color.Black,
+    surfaceContainerLow = lerp(surfaceContainerLow, Color.Black, 0.6f),
+    surfaceContainer = lerp(surfaceContainer, Color.Black, 0.5f),
+    surfaceContainerHigh = lerp(surfaceContainerHigh, Color.Black, 0.4f),
+    surfaceContainerHighest = lerp(surfaceContainerHighest, Color.Black, 0.3f),
 )
 
 private fun hsl(h: Float, s: Float, l: Float) =
@@ -126,15 +203,17 @@ fun AemuTheme(forceDark: Boolean? = null, content: @Composable () -> Unit) {
     val accent = app.aemu.AppPrefs.accentColor(ctx)
     val scheme = when {
         accent != 0 -> schemeFromSeed(Color(accent), dark)
+        app.aemu.AppPrefs.palette(ctx) == app.aemu.AppPrefs.PALETTE_ANDROID -> if (dark) AndroidDark else AndroidLight
         Build.VERSION.SDK_INT >= 31 && app.aemu.AppPrefs.dynamicColor(ctx) -> if (dark) dynamicDarkColorScheme(ctx) else dynamicLightColorScheme(ctx)
         dark -> Dark
         else -> Light
     }
+    val style = app.aemu.AppPrefs.uiStyle(ctx)
     MaterialExpressiveTheme(
-        colorScheme = scheme,
-        motionScheme = MotionScheme.expressive(),
-        shapes = AppShapes,
-        typography = AppType,
+        colorScheme = if (dark && style.pureBlack) scheme.pureBlack() else scheme,
+        motionScheme = if (style.expressiveMotion) MotionScheme.expressive() else MotionScheme.standard(),
+        shapes = appShapes(style.corners),
+        typography = appTypography(style.font, style.textScale),
         content = content,
     )
 }

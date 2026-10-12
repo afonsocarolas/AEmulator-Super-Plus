@@ -1,5 +1,5 @@
 /* Modified for AEmulator Sunset, 2026-10-03: cross-process display options.
- * Modified for AEmulator Super Plus, 2026-10-11: 3D library preference; 2026-10-12: Holo navigation bar, VM themes. GPL-3.0. */
+ * Modified for AEmulator Super Plus, 2026-10-11: 3D library preference; 2026-10-12: Holo navigation bar, VM themes, interface style, Android color theme. GPL-3.0. */
 package app.aemu
 
 import android.content.Context
@@ -74,6 +74,41 @@ object AppPrefs {
     /** Custom accent color (ARGB) chosen with the color picker; 0 = use the built-in Sunset palette. */
     fun accentColor(ctx: Context): Int = sp(ctx).getInt("accent_color", 0)
     fun setAccentColor(ctx: Context, argb: Int) = sp(ctx).edit().putInt("accent_color", argb).apply()
+
+    /** Interface style (Super Plus): how the app itself looks, on top of the theme and accent. Applied live. */
+    data class UiStyle(val pureBlack: Boolean = false, val corners: Int = CORNERS_ROUND, val font: Int = FONT_DEFAULT,
+        val textScale: Float = 1f, val expressiveMotion: Boolean = true)
+
+    const val CORNERS_SHARP = 0
+    const val CORNERS_SOFT = 1
+    const val CORNERS_ROUND = 2
+    const val CORNERS_EXTRA = 3
+    const val FONT_DEFAULT = 0
+    const val FONT_SERIF = 1
+    const val FONT_MONO = 2
+    val TEXT_SCALE = 0.85f..1.3f
+
+    fun uiStyle(ctx: Context): UiStyle {
+        val p = sp(ctx)
+        return UiStyle(
+            pureBlack = p.getBoolean("ui_pure_black", false),
+            corners = p.getInt("ui_corners", CORNERS_ROUND).coerceIn(CORNERS_SHARP, CORNERS_EXTRA),
+            font = p.getInt("ui_font", FONT_DEFAULT).coerceIn(FONT_DEFAULT, FONT_MONO),
+            textScale = p.getFloat("ui_text_scale", 1f).coerceIn(TEXT_SCALE),
+            expressiveMotion = p.getBoolean("ui_expressive_motion", true),
+        )
+    }
+
+    fun setUiStyle(ctx: Context, s: UiStyle) = sp(ctx).edit()
+        .putBoolean("ui_pure_black", s.pureBlack).putInt("ui_corners", s.corners).putInt("ui_font", s.font)
+        .putFloat("ui_text_scale", s.textScale.coerceIn(TEXT_SCALE)).putBoolean("ui_expressive_motion", s.expressiveMotion).apply()
+
+    const val PALETTE_SUNSET = 0
+    const val PALETTE_ANDROID = 1
+
+    /** Built-in color theme used when no custom accent is set: Sunset (orange) or Android (brand green and navy). */
+    fun palette(ctx: Context): Int = sp(ctx).getInt("palette", PALETTE_SUNSET).coerceIn(PALETTE_SUNSET, PALETTE_ANDROID)
+    fun setPalette(ctx: Context, v: Int) = sp(ctx).edit().putInt("palette", v).apply()
 
     fun dynamicColor(ctx: Context): Boolean = sp(ctx).getBoolean("dynamic", true)
     fun setDynamicColor(ctx: Context, v: Boolean) = sp(ctx).edit().putBoolean("dynamic", v).apply()

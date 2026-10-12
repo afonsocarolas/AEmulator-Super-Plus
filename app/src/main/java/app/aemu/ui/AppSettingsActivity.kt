@@ -1,6 +1,6 @@
 /* Modified for AEmulator Sunset through 2026-10-03: host display options, fork links, catalog,
  * experimental unlock and local license/notices.
- * Modified for AEmulator Super Plus, 2026-10-12: VM screen themes (replace the navigation bar style). GPL-3.0; see NOTICE.md. */
+ * Modified for AEmulator Super Plus, 2026-10-12: VM screen themes (replace the navigation bar style), interface style, Android color theme. GPL-3.0; see NOTICE.md. */
 package app.aemu.ui
 
 import android.content.Context
@@ -127,6 +127,8 @@ private fun AppSettings(onBack: () -> Unit, onRestyle: () -> Unit) {
     var theme by remember { mutableStateOf(AppPrefs.theme(ctx)) }
     var dynamic by remember { mutableStateOf(AppPrefs.dynamicColor(ctx)) }
     var accent by remember { mutableStateOf(AppPrefs.accentColor(ctx)) }
+    var palette by remember { mutableStateOf(AppPrefs.palette(ctx)) }
+    val paletteColor = if (palette == AppPrefs.PALETTE_ANDROID) AndroidGreen else Color(0xFFF4511E)
     var accentDialog by remember { mutableStateOf(false) }
     var hostUi by remember { mutableStateOf(AppPrefs.hostUiOptions(ctx)) }
     val scope = rememberCoroutineScope()
@@ -136,7 +138,7 @@ private fun AppSettings(onBack: () -> Unit, onRestyle: () -> Unit) {
 
     if (accentDialog) {
         ColorPickerDialog(
-            initial = if (accent == 0) Color(0xFFF4511E) else Color(accent),
+            initial = if (accent == 0) paletteColor else Color(accent),
             onDismiss = { accentDialog = false },
             onReset = { accent = 0; AppPrefs.setAccentColor(ctx, 0); accentDialog = false; onRestyle() },
             onApply = { c ->
@@ -246,6 +248,7 @@ private fun AppSettings(onBack: () -> Unit, onRestyle: () -> Unit) {
                     }
                     // the navigation bar style is now part of the VM screen theme (Original, Sunset, 2.x-5.x eras, own themes)
                     VmThemeRow()
+                    UiStyleRow()
                     Row_(Icons.Rounded.Translate, stringResource(R.string.as_language), langName) { langDialog = true }
                     Text(stringResource(R.string.as_theme), style = MaterialTheme.typography.labelLarge,
                         modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp))
@@ -269,19 +272,28 @@ private fun AppSettings(onBack: () -> Unit, onRestyle: () -> Unit) {
                             }
                         }
                     }
+                    Text(stringResource(R.string.as_palette), style = MaterialTheme.typography.labelLarge,
+                        modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp))
+                    androidx.compose.foundation.layout.Box(Modifier.padding(horizontal = 16.dp)) {
+                        Segmented(listOf(R.string.as_palette_sunset, R.string.as_palette_android), palette) {
+                            palette = it; AppPrefs.setPalette(ctx, it)
+                        }
+                    }
+                    if (accent != 0) Text(stringResource(R.string.as_palette_accent_note), style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp))
                     ListItem(
                         headlineContent = { Text(stringResource(R.string.as_accent)) },
-                        supportingContent = { Text(if (accent == 0) stringResource(R.string.as_accent_default)
+                        supportingContent = { Text(if (accent == 0) stringResource(if (palette == AppPrefs.PALETTE_ANDROID) R.string.as_palette_android else R.string.as_accent_default)
                             else "#%06X".format(accent and 0xFFFFFF)) },
                         trailingContent = {
                             androidx.compose.foundation.layout.Box(Modifier.size(28.dp)
                                 .clip(androidx.compose.foundation.shape.CircleShape)
-                                .background(if (accent == 0) Color(0xFFF4511E) else Color(accent)))
+                                .background(if (accent == 0) paletteColor else Color(accent)))
                         },
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                         modifier = Modifier.clickable { accentDialog = true },
                     )
-                    if (Build.VERSION.SDK_INT >= 31 && accent == 0) {
+                    if (Build.VERSION.SDK_INT >= 31 && accent == 0 && palette == AppPrefs.PALETTE_SUNSET) {
                         Toggle(stringResource(R.string.as_dynamic), stringResource(R.string.as_dynamic_sub), dynamic) {
                             dynamic = it; AppPrefs.setDynamicColor(ctx, it); onRestyle()
                         }
