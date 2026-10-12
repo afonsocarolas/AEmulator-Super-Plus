@@ -1,5 +1,5 @@
 /* Modified for AEmulator Sunset, 2026-10-03: cross-process display options.
- * Modified for AEmulator Super Plus, 2026-10-11: 3D library preference; 2026-10-12: Holo navigation bar, VM themes, interface style, Android color theme. GPL-3.0. */
+ * Modified for AEmulator Super Plus, 2026-10-11: 3D library preference; 2026-10-12: Holo navigation bar, VM themes, interface style, Android color theme, AIemulator server. GPL-3.0. */
 package app.aemu
 
 import android.content.Context
@@ -109,6 +109,12 @@ object AppPrefs {
     /** Built-in color theme used when no custom accent is set: Sunset (orange) or Android (brand green and navy). */
     fun palette(ctx: Context): Int = sp(ctx).getInt("palette", PALETTE_SUNSET).coerceIn(PALETTE_SUNSET, PALETTE_ANDROID)
     fun setPalette(ctx: Context, v: Int) = sp(ctx).edit().putInt("palette", v).apply()
+
+    /** AIemulator: the owner's proxy server (holds the Anthropic API key) and the access code it asks for. */
+    fun aiServerUrl(ctx: Context): String = sp(ctx).getString("ai_server_url", null) ?: app.aemu.BuildConfig.AIEMU_SERVER_URL
+    fun setAiServerUrl(ctx: Context, v: String) = sp(ctx).edit().putString("ai_server_url", v.trim()).apply()
+    fun aiAccessCode(ctx: Context): String = sp(ctx).getString("ai_access_code", "") ?: ""
+    fun setAiAccessCode(ctx: Context, v: String) = sp(ctx).edit().putString("ai_access_code", v.trim()).apply()
 
     fun dynamicColor(ctx: Context): Boolean = sp(ctx).getBoolean("dynamic", true)
     fun setDynamicColor(ctx: Context, v: Boolean) = sp(ctx).edit().putBoolean("dynamic", v).apply()

@@ -1,0 +1,11 @@
+name = "aiemulator"
+main = "src/index.ts"
+compatibility_date = "2025-09-24"
+
+[vars]
+MODEL = "claude-opus-5-5"
+MAX_TOKENS = "64000"
+
+# Secrets (never put them in this file):
+#   npx wrangler secret put ANTHROPIC_API_KEY
+#   npx wrangler secret put ACCESS_CODES      # e.g. "friend-1,friend-2"

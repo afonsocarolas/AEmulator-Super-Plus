@@ -50,6 +50,7 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Android
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Tune
@@ -225,6 +226,9 @@ fun Library(model: LibraryModel) {
                     }
                     IconButton(onClick = { ctx.startActivity(Intent(ctx, RomCatalogActivity::class.java)) }) {
                         Icon(Icons.Rounded.List, stringResource(R.string.catalog_title))
+                    }
+                    IconButton(onClick = { ctx.startActivity(Intent(ctx, AiEmulatorActivity::class.java)) }) {
+                        Icon(Icons.Rounded.AutoAwesome, stringResource(R.string.ai_title))
                     }
                     IconButton(onClick = { help = true }) { Icon(Icons.Rounded.Info, stringResource(R.string.help)) }
                     IconButton(onClick = { ctx.startActivity(Intent(ctx, AppSettingsActivity::class.java)) }) { Icon(Icons.Rounded.Settings, stringResource(R.string.settings)) } },

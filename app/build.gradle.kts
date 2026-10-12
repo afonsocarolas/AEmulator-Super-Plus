@@ -35,6 +35,8 @@ android {
         versionCode = 32
         versionName = "0.0.0.2.9" // <AEmulator base>.<Plus release>
         ndk { abiFilters += listOf("arm64-v8a") }
+        // AIemulator: default proxy server, e.g. -PaiemuServerUrl=https://aiemulator.example.workers.dev; users can change it in the app
+        buildConfigField("String", "AIEMU_SERVER_URL", "\"${(project.findProperty("aiemuServerUrl") as String?) ?: ""}\"")
     }
 
     signingConfigs {
@@ -61,6 +63,8 @@ android {
     packaging {
         // исполняемые файлы движка лежат как lib*.so и должны распаковываться на диск
         jniLibs { useLegacyPackaging = true }
+        // the Anthropic SDK and its Jackson/HTTP dependencies each ship this build-metadata file
+        resources { excludes += "META-INF/DEPENDENCIES" }
     }
 
     androidResources {
@@ -101,6 +105,8 @@ dependencies {
     implementation("net.lingala.zip4j:zip4j:2.11.6")
     implementation("com.github.luben:zstd-jni:1.5.7-4@aar")
     implementation("org.anarres.lzo:lzo-commons:1.0.6")
+    // AIemulator (Super Plus): Claude through the owner's proxy server
+    implementation("com.anthropic:anthropic-java:2.34.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")
 }

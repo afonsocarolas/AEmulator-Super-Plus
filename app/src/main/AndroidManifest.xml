@@ -71,6 +71,10 @@
             android:exported="false"
             android:parentActivityName=".ui.MainActivity" />
 
+        <activity android:name=".ui.AiEmulatorActivity" android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:parentActivityName=".ui.MainActivity" />
+
         <activity android:name=".ui.RomCatalogActivity" android:exported="false"
             android:parentActivityName=".ui.MainActivity" />
 
