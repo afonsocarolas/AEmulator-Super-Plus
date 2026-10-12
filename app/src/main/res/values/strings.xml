@@ -299,6 +299,7 @@
     <string name="as_navbar_style">Navbar style</string>
     <string name="as_navbar_original">Original</string>
     <string name="as_navbar_sunset">Sunset</string>
+    <string name="as_navbar_holo">Holo</string>
     <string name="m_rotate_failed">Guest Android could not rotate the screen. Check the VM logs.</string>
     <string name="vs_disable_google">Disable Google apps</string>
     <string name="vs_disable_google_sub">After a full restart, disable detected Google apps, Play Store, Play services and Google account components. Keep launchers, keyboards, WebView and critical system components. Setup wizard is controlled separately. Apps that need Google services may stop working. Turning this off restores only apps disabled by this option; APKs and app data are not deleted.</string>

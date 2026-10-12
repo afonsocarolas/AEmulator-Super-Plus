@@ -1,6 +1,6 @@
 /* Modified for AEmulator Sunset through 2026-10-03: natural-edge controls, cutout and
  * compatibility and camera integration.
- * Modified for AEmulator Super Plus, 2026-10-11: microphone permission, library thumbnails. GPL-3.0; see LICENSE and NOTICE.md. */
+ * Modified for AEmulator Super Plus, 2026-10-11: microphone permission, library thumbnails; 2026-10-12: Holo navigation bar. GPL-3.0; see LICENSE and NOTICE.md. */
 package app.aemu.ui
 
 import app.aemu.R
@@ -963,10 +963,10 @@ class VmActivity : ComponentActivity() {
                     box.post { updateGuestLayout?.invoke() }
                 }) {
                 Surface(
-                    color = if (hostUi.sunsetNavbar) Color(0xF20B0B0B) else MaterialTheme.colorScheme.secondaryContainer,
-                    shape = if (hostUi.sunsetNavbar) androidx.compose.ui.graphics.RectangleShape else androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
+                    color = if (hostUi.holoNavbar) Color.Black else if (hostUi.sunsetNavbar) Color(0xF20B0B0B) else MaterialTheme.colorScheme.secondaryContainer,
+                    shape = if (hostUi.sunsetNavbar || hostUi.holoNavbar) androidx.compose.ui.graphics.RectangleShape else androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
                     modifier = (if (sideways) Modifier.fillMaxHeight() else Modifier.fillMaxWidth())
-                        .padding(if (hostUi.sunsetNavbar) 0.dp else 6.dp),
+                        .padding(if (hostUi.sunsetNavbar || hostUi.holoNavbar) 0.dp else 6.dp),
                 ) {
                     ControlStrip(stripTurns, Modifier.navigationBarsPadding(), trackball = {
                         if (vm.settings.trackball) Column(
@@ -1011,7 +1011,7 @@ class VmActivity : ComponentActivity() {
                                         onClick = { vm.input.press(code) },
                                         onDown = { heldNavKeys.down(code) }, onUp = { heldNavKeys.up(code) },
                                         iconRotation = app.aemu.core.HostDisplayPolicy.controlIconRotation(tablet,
-                                            hostUi.tabletNavbarRotation, iconTurns, windowTurns), original = !hostUi.sunsetNavbar)
+                                            hostUi.tabletNavbarRotation, iconTurns, windowTurns), original = !hostUi.sunsetNavbar && !hostUi.holoNavbar, holo = hostUi.holoNavbar)
                                 }
                             }
                             if (stockRecovery && !(stripTurns == 1 || stripTurns == 2)) GoToRecoveryButton(sideways)

@@ -1,5 +1,6 @@
 /* Modified for AEmulator Sunset through 2026-10-03: rounded highlights, icon rotation,
- * held guest keys. GPL-3.0; original attribution is preserved in NOTICE.md. */
+ * held guest keys.
+ * Modified for AEmulator Super Plus, 2026-10-12: Holo (Android 4.x) style. GPL-3.0; original attribution is preserved in NOTICE.md. */
 package app.aemu.ui
 
 import android.content.Context
@@ -40,6 +41,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.Brush
 import app.aemu.core.NavButton
 import app.aemu.core.TrackballMotion
 import androidx.compose.material.icons.Icons
@@ -48,14 +51,19 @@ import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.Icon
 
 @Composable
-internal fun HoloNavButton(button: NavButton, label: String, onClick: () -> Unit, onDown: () -> Unit, onUp: () -> Unit, iconRotation: Float = 0f, original: Boolean = false) {
+internal fun HoloNavButton(button: NavButton, label: String, onClick: () -> Unit, onDown: () -> Unit, onUp: () -> Unit, iconRotation: Float = 0f, original: Boolean = false, holo: Boolean = false) {
     val hostView = androidx.compose.ui.platform.LocalView.current
     val down by rememberUpdatedState(onDown)
     val up by rememberUpdatedState(onUp)
     var pressed by remember { mutableStateOf(false) }
     DisposableEffect(Unit) { onDispose { up() } }
-    Box(Modifier.size(48.dp).background(if (pressed) Color.White.copy(alpha = 0.18f) else Color.Transparent,
-        RoundedCornerShape(8.dp)).semantics {
+    // Holo (Android 4.x): a pressed key blooms with a soft Holo-blue glow instead of a grey box
+    val pressBackground = when {
+        !pressed -> Modifier
+        holo -> Modifier.background(Brush.radialGradient(listOf(HOLO_BLUE.copy(alpha = 0.65f), HOLO_BLUE.copy(alpha = 0.18f), Color.Transparent)), CircleShape)
+        else -> Modifier.background(Color.White.copy(alpha = 0.18f), RoundedCornerShape(8.dp))
+    }
+    Box(Modifier.size(48.dp).then(pressBackground).semantics {
         contentDescription = label
         role = Role.Button
         // Accessibility activation remains one tap, without duplicating physical touches.
@@ -111,6 +119,41 @@ internal fun HoloNavButton(button: NavButton, label: String, onClick: () -> Unit
                 }
                 drawPath(path, Color.White, style = stroke)
             }
+            // Holo glyph: a wide faint halo under a thin, slightly translucent line, like the ICS/JB system bar
+            fun holoPath(path: Path) {
+                drawPath(path, Color.White.copy(alpha = if (pressed) 0.35f else 0.16f), style = Stroke(5f * s, cap = StrokeCap.Round, join = StrokeJoin.Round))
+                drawPath(path, Color.White.copy(alpha = 0.92f), style = Stroke(1.7f * s, cap = StrokeCap.Square, join = StrokeJoin.Miter))
+            }
+            fun holoLines(vararg points: Pair<Float, Float>, close: Boolean = false) = holoPath(Path().apply {
+                moveTo(points[0].first * s, points[0].second * s)
+                points.drop(1).forEach { lineTo(it.first * s, it.second * s) }
+                if (close) close()
+            })
+            if (holo && button in HOLO_GLYPHS) {
+                when (button) {
+                    // the curved U-turn arrow: head pointing left, shaft along the top, a half circle down the right
+                    NavButton.BACK -> {
+                        holoLines(11f to 6.5f, 5.5f to 12f, 11f to 17.5f)
+                        holoPath(Path().apply {
+                            moveTo(5.5f * s, 12f * s)
+                            lineTo(19.5f * s, 12f * s)
+                            arcTo(androidx.compose.ui.geometry.Rect(13f * s, 12f * s, 26f * s, 25f * s), -90f, 180f, false)
+                            lineTo(9f * s, 25f * s)
+                        })
+                    }
+                    // a wide house: roof with a small overhang, flat walls
+                    NavButton.HOME -> {
+                        holoLines(4.5f to 16f, 16f to 8f, 27.5f to 16f)
+                        holoLines(8f to 13.5f, 8f to 25.5f, 24f to 25.5f, 24f to 13.5f)
+                    }
+                    // two windows: the front one, and the edges of the one behind it, up and to the right
+                    else -> {
+                        holoLines(6f to 11f, 21f to 11f, 21f to 26f, 6f to 26f, close = true)
+                        holoLines(10.5f to 11f, 10.5f to 6f, 26f to 6f, 26f to 21.5f, 21f to 21.5f)
+                    }
+                }
+                return@Canvas
+            }
             when (button) {
                 NavButton.BACK -> {
                     // Holo's thin bent arrow, not the filled Material "undo" arrow.
@@ -144,6 +187,11 @@ internal fun HoloNavButton(button: NavButton, label: String, onClick: () -> Unit
 
 /** Single-finger rolling surface; cancelling/multitouch never generates a click.
  * It lives above the nav/inset area and consumes its own stream, not guest touch. */
+/** Holo blue (#33B5E5), the accent of Android 4.x. */
+private val HOLO_BLUE = Color(0xFF33B5E5)
+/** Keys the Holo style draws in its own Android 4.x shapes; the others keep the Sunset outlines. */
+private val HOLO_GLYPHS = setOf(NavButton.BACK, NavButton.HOME, NavButton.RECENTS)
+
 internal class TrackballView(context: Context) : View(context) {
     var motion = TrackballMotion(18f)
     var dpad = false

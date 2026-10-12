@@ -1,5 +1,5 @@
 /* Modified for AEmulator Sunset, 2026-10-03: cross-process display options.
- * Modified for AEmulator Super Plus, 2026-10-11: 3D library preference. GPL-3.0. */
+ * Modified for AEmulator Super Plus, 2026-10-11: 3D library preference; 2026-10-12: Holo navigation bar. GPL-3.0. */
 package app.aemu
 
 import android.content.Context
@@ -43,14 +43,15 @@ object AppPrefs {
 
     fun prefs(ctx: Context) = sp(ctx)
 
+    /** [holoNavbar] (Super Plus): the Android 4.x Holo bar - curved back arrow, Holo-blue press glow; implies the flat black bar of [sunsetNavbar]. */
     data class HostUiOptions(val cutoutBarrier: Boolean = false, val sunsetNavbar: Boolean = true,
-        val tabletNavbarRotation: Boolean = true)
+        val tabletNavbarRotation: Boolean = true, val holoNavbar: Boolean = false)
     // The VM runs in another process: read an atomic file on resume, not cached SharedPreferences.
     fun hostUiOptions(ctx: Context): HostUiOptions = runCatching {
         val file = android.util.AtomicFile(java.io.File(ctx.filesDir, "host-ui.json"))
         val json = org.json.JSONObject(file.openRead().bufferedReader().use { it.readText() })
         HostUiOptions(json.optBoolean("cutoutBarrier", false), json.optBoolean("sunsetNavbar", true),
-            json.optBoolean("tabletNavbarRotation", true))
+            json.optBoolean("tabletNavbarRotation", true), json.optBoolean("holoNavbar", false))
     }.getOrDefault(HostUiOptions())
 
     fun setHostUiOptions(ctx: Context, options: HostUiOptions) {
@@ -58,7 +59,7 @@ object AppPrefs {
         val stream = file.startWrite()
         try {
             stream.write(org.json.JSONObject().put("cutoutBarrier", options.cutoutBarrier)
-                .put("sunsetNavbar", options.sunsetNavbar).put("tabletNavbarRotation", options.tabletNavbarRotation)
+                .put("sunsetNavbar", options.sunsetNavbar).put("tabletNavbarRotation", options.tabletNavbarRotation).put("holoNavbar", options.holoNavbar)
                 .toString().toByteArray(Charsets.UTF_8))
             file.finishWrite(stream)
         } catch (error: Throwable) { file.failWrite(stream); throw error }

@@ -265,6 +265,7 @@
     <string name="as_navbar_style">Estilo da barra de navegação</string>
     <string name="as_navbar_original">Original</string>
     <string name="as_navbar_sunset">Pôr do sol</string>
+    <string name="as_navbar_holo">Holo</string>
     <string name="m_rotate_failed">O Android convidado não conseguiu girar a tela. Verifique os logs da VM.</string>
     <string name="vs_disable_google">Desativar apps do Google</string>
     <string name="vs_disable_google_sub">Após uma reinicialização completa, desativa os apps do Google detectados, a Play Store, os serviços do Play e os componentes da conta Google. Launchers, teclados, WebView e componentes críticos do sistema são mantidos. O assistente de configuração é controlado separadamente. Apps que precisam dos serviços do Google podem parar de funcionar. Desativar esta opção restaura apenas os apps desativados por ela; APKs e dados dos apps não são excluídos.</string>

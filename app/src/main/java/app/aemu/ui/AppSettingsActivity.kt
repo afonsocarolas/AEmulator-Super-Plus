@@ -1,5 +1,6 @@
 /* Modified for AEmulator Sunset through 2026-10-03: host display options, fork links, catalog,
- * experimental unlock and local license/notices. GPL-3.0; see NOTICE.md. */
+ * experimental unlock and local license/notices.
+ * Modified for AEmulator Super Plus, 2026-10-12: Holo navigation bar style. GPL-3.0; see NOTICE.md. */
 package app.aemu.ui
 
 import android.content.Context
@@ -245,11 +246,13 @@ private fun AppSettings(onBack: () -> Unit, onRestyle: () -> Unit) {
                     }
                     Text(stringResource(R.string.as_navbar_style), modifier = Modifier.padding(start = 16.dp, top = 8.dp))
                     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf(false to R.string.as_navbar_original, true to R.string.as_navbar_sunset).forEach { (sunset, label) ->
+                        // 0 original, 1 Sunset, 2 Holo (Android 4.x; flat black bar like Sunset)
+                        val style = if (hostUi.holoNavbar) 2 else if (hostUi.sunsetNavbar) 1 else 0
+                        listOf(R.string.as_navbar_original, R.string.as_navbar_sunset, R.string.as_navbar_holo).forEachIndexed { i, label ->
                             Row(Modifier.weight(1f).clickable {
-                                hostUi = hostUi.copy(sunsetNavbar = sunset); AppPrefs.setHostUiOptions(ctx, hostUi)
+                                hostUi = hostUi.copy(sunsetNavbar = i >= 1, holoNavbar = i == 2); AppPrefs.setHostUiOptions(ctx, hostUi)
                             }, verticalAlignment = Alignment.CenterVertically) {
-                                RadioButton(selected = hostUi.sunsetNavbar == sunset, onClick = null)
+                                RadioButton(selected = style == i, onClick = null)
                                 Text(stringResource(label))
                             }
                         }
