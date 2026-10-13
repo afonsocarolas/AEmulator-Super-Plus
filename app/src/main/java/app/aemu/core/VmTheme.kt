@@ -1,4 +1,4 @@
-/* AEmulator Super Plus, 2026-10-12: VM screen themes. GPL-3.0; see LICENSE and NOTICE.md. */
+/* AEmulator Super Plus, 2026-10-12: VM screen themes; 2026-10-13: device skins. GPL-3.0; see LICENSE and NOTICE.md. */
 package app.aemu.core
 
 import android.content.Context
@@ -37,13 +37,24 @@ data class VmTheme(
     val frameImage: String? = null,
     /** rounded corners of the guest screen, dp */
     val screenCorner: Int = 0,
+    /** Device skin: where the screen is on [frameImage]. Set = the whole picture is shown and the guest sits in this area. */
+    val skinScreen: SkinRect? = null,
+    /** the screen resolution the skin was drawn for (0 = any): keeps the screen area's shape while it is resized */
+    val skinWidth: Int = 0,
+    val skinHeight: Int = 0,
+    /** the skin's own hardware keys; with any, the on-screen bar is hidden while the skin is shown */
+    val skinKeys: List<SkinKey> = emptyList(),
     val builtIn: Boolean = false,
 ) {
+    val isSkin get() = frameImage != null && skinScreen != null
+
     fun toJson(): JSONObject = JSONObject().put("id", id).put("name", name).put("glyphs", glyphs.name)
         .put("barColor", barColor ?: JSONObject.NULL).put("iconColor", iconColor ?: JSONObject.NULL)
         .put("pressColor", pressColor).put("pressGlow", pressGlow).put("halo", halo).put("roundedBar", roundedBar)
         .put("iconScale", iconScale.toDouble()).put("frameColor", frameColor)
         .put("frameImage", frameImage ?: JSONObject.NULL).put("screenCorner", screenCorner)
+        .put("skinScreen", skinScreen?.toJson() ?: JSONObject.NULL).put("skinWidth", skinWidth).put("skinHeight", skinHeight)
+        .put("skinKeys", JSONArray(skinKeys.map { it.toJson() }))
 
     companion object {
         const val NAME_MAX = 32
@@ -62,6 +73,9 @@ data class VmTheme(
                 frameColor = o.optLong("frameColor", 0xFF000000).toInt(),
                 frameImage = if (o.isNull("frameImage")) null else o.optString("frameImage").takeIf { safeFileName(it) },
                 screenCorner = o.optInt("screenCorner").coerceIn(0, 40),
+                skinScreen = SkinRect.fromJson(o.optJSONArray("skinScreen")),
+                skinWidth = o.optInt("skinWidth").coerceIn(0, 8192), skinHeight = o.optInt("skinHeight").coerceIn(0, 8192),
+                skinKeys = o.optJSONArray("skinKeys")?.let { a -> List(a.length()) { a.optJSONObject(it)?.let(SkinKey::fromJson) }.filterNotNull().take(16) } ?: emptyList(),
             )
         }
 

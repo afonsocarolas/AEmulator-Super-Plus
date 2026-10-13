@@ -8,6 +8,8 @@ import java.io.File
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.role
+import androidx.compose.foundation.gestures.detectTapGestures
 import android.annotation.SuppressLint
 import android.content.Context
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -168,6 +170,10 @@ class VmActivity : ComponentActivity() {
     /** VM screen theme (core/VmTheme.kt): navigation bar look, frame behind the guest, screen corners */
     private var vmTheme by mutableStateOf(app.aemu.core.VmThemes.BUILT_IN[1])
     private var frameView: android.widget.ImageView? = null
+    /** size of the decoded skin picture while the selected theme is a device skin */
+    private var skinSize: Pair<Int, Int>? = null
+    /** where the skin, its screen and its keys are right now; null = no skin shown (none, or sideways) */
+    private var skinLayout by mutableStateOf<app.aemu.core.DeviceSkin.Layout?>(null)
     private var vmRoot: FrameLayout? = null
     private var cutoutInsets = androidx.core.graphics.Insets.NONE
     private var orientationListener: android.view.OrientationEventListener? = null
@@ -294,6 +300,37 @@ class VmActivity : ComponentActivity() {
         // экран гостя вписываем с сохранением пропорций над панелью кнопок
         updateGuestLayout = layout@{
             if (root.width <= 0 || root.height <= 0) return@layout
+            val aw = root.width - root.paddingLeft - root.paddingRight
+            val ah = root.height - root.paddingTop - root.paddingBottom
+            val skin = vmTheme.skinScreen.takeIf { vmTheme.isSkin }
+            val skinPic = skinSize
+            val fv = frameView
+            // a device skin is a portrait phone with its bar (if any) at the bottom
+            if (skin != null && skinPic != null && fv != null && controlsTurns == 0 && aw <= ah) {
+                val l = app.aemu.core.DeviceSkin.layout(aw, (ah - controlsHeightPx).coerceAtLeast(1), skinPic.first, skinPic.second,
+                    skin, vmTheme.skinKeys, gw, gh)
+                fun place(v: View, b: app.aemu.core.DeviceSkin.Box) {
+                    val p = v.layoutParams as FrameLayout.LayoutParams
+                    if (p.width != b.width || p.height != b.height || p.leftMargin != b.left || p.topMargin != b.top || p.gravity != (Gravity.LEFT or Gravity.TOP)) {
+                        p.width = b.width; p.height = b.height; p.gravity = Gravity.LEFT or Gravity.TOP
+                        p.leftMargin = b.left; p.topMargin = b.top
+                        v.layoutParams = p
+                    }
+                }
+                box.rotation = 0f
+                place(fv, l.image)
+                place(box, l.guest)
+                if (skinLayout != l) skinLayout = l
+                return@layout
+            }
+            if (skinLayout != null) skinLayout = null
+            fv?.let { v ->
+                val p = v.layoutParams as FrameLayout.LayoutParams
+                if (p.width != -1 || p.height != -1 || p.leftMargin != 0 || p.topMargin != 0) {
+                    p.width = -1; p.height = -1; p.leftMargin = 0; p.topMargin = 0
+                    v.layoutParams = p
+                }
+            }
             val fit = DisplayGeometry.fit(root.width - root.paddingLeft - root.paddingRight,
                 root.height - root.paddingTop - root.paddingBottom, gw, gh, controlsHeightPx, controlsTurns, s.hostResolution)
             val w = fit.width
@@ -535,6 +572,9 @@ class VmActivity : ComponentActivity() {
             }
             fv.setImageBitmap(bmp)
             fv.visibility = if (bmp != null) View.VISIBLE else View.GONE
+            fv.scaleType = if (t.isSkin) android.widget.ImageView.ScaleType.FIT_XY else android.widget.ImageView.ScaleType.CENTER_CROP
+            skinSize = if (t.isSkin && bmp != null) bmp.width to bmp.height else null
+            root.post { updateGuestLayout?.invoke() }
         }
         if (::box.isInitialized) {
             val r = t.screenCorner * resources.displayMetrics.density
@@ -849,6 +889,7 @@ class VmActivity : ComponentActivity() {
         // как только гость начал рисовать — карточку убираем, остаётся маленький индикатор
         val drawing = frames > 30
         Box(Modifier.fillMaxSize()) {
+            if (!showLog) skinLayout?.keys?.forEach { (button, area) -> key(button, area) { SkinKeyZone(button, area) } }
             if (romNote.isNotBlank() && !vm.recoveryMode && !vm.lowPowerBoot && !showLog && !menu) {
                 Surface(shape = MaterialTheme.shapes.large,
                     color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.95f),
@@ -977,7 +1018,8 @@ class VmActivity : ComponentActivity() {
             val buttons = NavControls.parse(navSetting).filter {
                 it != NavButton.RECENTS || vm.img.api >= 11
             }
-            val showButtons = (vm.settings.showNavBar || vm.recoveryMode) && buttons.isNotEmpty()
+            val skinKeys = skinLayout?.keys.orEmpty()
+            val showButtons = (vm.settings.showNavBar || vm.recoveryMode) && buttons.isNotEmpty() && (skinKeys.isEmpty() || vm.recoveryMode)
             // "Go to recovery" (leave the stock recovery's "No command" screen): only in a stock recovery, whatever the settings
             val stockRecovery = remember(vm.recoveryMode) { vm.recoveryMode && app.aemu.core.RecoveryImage.kind(vm.paths) == app.aemu.core.RecoveryImage.Kind.STOCK }
             val showStrip = showButtons || stockRecovery
@@ -1063,6 +1105,30 @@ class VmActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    /** A hardware key drawn on the device skin: pressed and held like the bar's keys. */
+    @Composable
+    private fun SkinKeyZone(button: NavButton, area: app.aemu.core.DeviceSkin.Box) {
+        val code = when (button) {
+            NavButton.HOME -> vm.input.homeCode
+            NavButton.CENTER -> vm.input.centerCode
+            else -> button.scanCode
+        }
+        val view = androidx.compose.ui.platform.LocalView.current
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        val label = stringResource(button.labelRes())
+        Box(Modifier
+            .offset { androidx.compose.ui.unit.IntOffset(area.left, area.top) }
+            .size(with(density) { area.width.toDp() }, with(density) { area.height.toDp() })
+            .semantics { contentDescription = label; role = androidx.compose.ui.semantics.Role.Button }
+            .pointerInput(code) {
+                detectTapGestures(onPress = {
+                    view.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+                    heldNavKeys.down(code)
+                    try { tryAwaitRelease() } finally { heldNavKeys.up(code) }
+                })
+            })
     }
 
     /** Stock recovery "No command" screen: hold Power, tap Volume Up, release Power. */

@@ -1,4 +1,4 @@
-/* AEmulator Super Plus, 2026-10-12: VM screen theme picker and editor. GPL-3.0; see LICENSE and NOTICE.md. */
+/* AEmulator Super Plus, 2026-10-12: VM screen theme picker and editor; 2026-10-13: editor moved to SkinEditor.kt. GPL-3.0; see LICENSE and NOTICE.md. */
 package app.aemu.ui
 
 import android.graphics.BitmapFactory
@@ -181,108 +181,13 @@ private fun ThemeSheet(onDismiss: () -> Unit) {
     }
 }
 
-/** Full-screen editor with a live preview of the VM screen: frame, rounded guest screen and the bar. */
 @Composable
-private fun ThemeEditor(initial: VmTheme, onCancel: () -> Unit, onSave: (VmTheme) -> Unit) {
-    val ctx = LocalContext.current
-    var t by remember { mutableStateOf(initial) }
-    var picking by remember { mutableStateOf<String?>(null) }   // which colour the picker edits
-    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) runCatching {
-            val bytes = ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: error("cannot read the picture")
-            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
-            require(bounds.outWidth > 0 && bounds.outHeight > 0) { "not a picture" }
-            t = t.copy(frameImage = VmThemes.importImage(ctx, bytes))
-        }.onFailure { toast(ctx, ctx.getString(R.string.th_failed, it.message)) }
-    }
-    val frameBitmap = remember(t.frameImage) {
-        VmThemes.imageFile(ctx, t)?.let { f ->
-            runCatching { BitmapFactory.decodeFile(f.path, BitmapFactory.Options().apply { inSampleSize = 4 })?.asImageBitmap() }.getOrNull()
-        }
-    }
-    Dialog(onDismissRequest = onCancel, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(Modifier.fillMaxSize()) {
-            Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp)) {
-                Text(stringResource(R.string.th_editor), style = MaterialTheme.typography.headlineSmall)
-                Spacer(Modifier.height(12.dp))
-                // live preview: frame (colour or picture), the guest screen with the theme's corners, the bar under it
-                Box(Modifier.fillMaxWidth().height(260.dp).clip(RoundedCornerShape(16.dp)).background(Color(t.frameColor)), contentAlignment = Alignment.Center) {
-                    frameBitmap?.let { Image(it, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Box(Modifier.width(120.dp).aspectRatio(0.62f).clip(RoundedCornerShape(t.screenCorner.dp / 2))
-                            .background(Brush.verticalGradient(listOf(Color(0xFF33B5E5), Color(0xFF0D2B66)))))
-                        Spacer(Modifier.height(8.dp))
-                        MiniBar(t, Modifier.width(200.dp), pressedKey = NavButton.HOME)
-                    }
-                }
-                Spacer(Modifier.height(12.dp))
-                OutlinedTextField(value = t.name, onValueChange = { t = t.copy(name = it.take(VmTheme.NAME_MAX)) },
-                    label = { Text(stringResource(R.string.name)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-
-                Label(R.string.th_glyphs)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    for (g in GlyphSet.entries) FilterChip(selected = t.glyphs == g, onClick = { t = t.copy(glyphs = g) },
-                        label = { Text(glyphLabel(g)) })
-                }
-                Label(R.string.th_icon_size)
-                Slider(value = t.iconScale, onValueChange = { t = t.copy(iconScale = it) }, valueRange = 0.7f..1.5f)
-
-                Label(R.string.th_colours)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Swatch(R.string.th_bar, t.barColor) { picking = "bar" }
-                    Swatch(R.string.th_icons, t.iconColor) { picking = "icons" }
-                    Swatch(R.string.th_pressed, t.pressColor) { picking = "pressed" }
-                    Swatch(R.string.th_frame, t.frameColor) { picking = "frame" }
-                }
-                Toggle(stringResource(R.string.th_glow), stringResource(R.string.th_glow_sub), t.pressGlow) { t = t.copy(pressGlow = it) }
-                Toggle(stringResource(R.string.th_halo), stringResource(R.string.th_halo_sub), t.halo) { t = t.copy(halo = it) }
-                Toggle(stringResource(R.string.th_rounded_bar), stringResource(R.string.th_rounded_bar_sub), t.roundedBar) { t = t.copy(roundedBar = it) }
-
-                Label(R.string.th_frame_section)
-                Text(stringResource(R.string.th_corner, t.screenCorner), style = MaterialTheme.typography.bodyMedium)
-                Slider(value = t.screenCorner.toFloat(), onValueChange = { t = t.copy(screenCorner = it.toInt()) }, valueRange = 0f..40f)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { imagePicker.launch(arrayOf("image/*")) }) { Text(stringResource(R.string.th_pick_picture)) }
-                    if (t.frameImage != null) TextButton(onClick = { t = t.copy(frameImage = null) }) { Text(stringResource(R.string.th_remove_picture)) }
-                }
-                Text(stringResource(R.string.th_corner_note), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-
-                Row(Modifier.fillMaxWidth().padding(vertical = 16.dp), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = onCancel) { Text(stringResource(R.string.cancel)) }
-                    Spacer(Modifier.width(8.dp))
-                    Button(onClick = { onSave(t.copy(name = VmTheme.cleanName(t.name).ifBlank { ctx.getString(R.string.th_new_name) })) }) {
-                        Text(stringResource(R.string.save))
-                    }
-                }
-            }
-        }
-    }
-    picking?.let { which ->
-        val current = when (which) { "bar" -> t.barColor; "icons" -> t.iconColor; "pressed" -> t.pressColor; else -> t.frameColor }
-        ColorPickerDialog(Color(current ?: 0xFF000000.toInt()), onDismiss = { picking = null },
-            onReset = {
-                // back to the value of the theme this one started from
-                t = when (which) { "bar" -> t.copy(barColor = initial.barColor); "icons" -> t.copy(iconColor = initial.iconColor)
-                    "pressed" -> t.copy(pressColor = initial.pressColor); else -> t.copy(frameColor = initial.frameColor) }
-                picking = null
-            },
-            onApply = { c ->
-                val v = c.toArgb()
-                t = when (which) { "bar" -> t.copy(barColor = v); "icons" -> t.copy(iconColor = v)
-                    "pressed" -> t.copy(pressColor = v); else -> t.copy(frameColor = v) }
-                picking = null
-            })
-    }
-}
-
-@Composable
-private fun Label(res: Int) = Text(stringResource(res), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary,
+internal fun ThemeLabel(res: Int) = Text(stringResource(res), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary,
     modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
 
 /** A colour swatch with its name; null = the app theme's own colour. */
 @Composable
-private fun Swatch(label: Int, color: Int?, onClick: () -> Unit) {
+internal fun Swatch(label: Int, color: Int?, onClick: () -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable(onClick = onClick)) {
         Box(Modifier.size(40.dp).clip(CircleShape).background(color?.let { Color(it) } ?: MaterialTheme.colorScheme.secondaryContainer)
             .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape))
@@ -291,7 +196,7 @@ private fun Swatch(label: Int, color: Int?, onClick: () -> Unit) {
 }
 
 @Composable
-private fun glyphLabel(g: GlyphSet) = when (g) {
+internal fun glyphLabel(g: GlyphSet) = when (g) {
     GlyphSet.MATERIAL -> stringResource(R.string.as_navbar_original)
     GlyphSet.SUNSET -> stringResource(R.string.as_navbar_sunset)
     GlyphSet.GINGERBREAD -> "2.x"
@@ -300,4 +205,4 @@ private fun glyphLabel(g: GlyphSet) = when (g) {
     GlyphSet.LOLLIPOP -> "5.x"
 }
 
-private fun toast(ctx: android.content.Context, msg: String) = Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show()
+internal fun toast(ctx: android.content.Context, msg: String) = Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show()

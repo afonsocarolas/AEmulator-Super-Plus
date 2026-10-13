@@ -423,4 +423,24 @@
     <string name="ai_err_refused">O AIemulator não pode ajudar com esse pedido.</string>
     <string name="ai_err_long">A resposta ficou longa demais e foi cortada. Tente uma pergunta mais específica.</string>
     <string name="ai_err_server">O servidor retornou um erro. Tente mais tarde.</string>
+    <string name="sk_pick_resolution">Escolher resolução</string>
+    <string name="sk_any">Qualquer</string>
+    <string name="sk_resolution_sub">O tamanho de tela do celular da imagem. A área da tela mantém esse formato ao ser redimensionada.</string>
+    <string name="sk_width">Largura</string>
+    <string name="sk_height">Altura</string>
+    <string name="sk_use">Usar</string>
+    <string name="sk_add_png">Adicionar PNG</string>
+    <string name="sk_style">Barra, cores e cantos</string>
+    <string name="sk_more">Mais</string>
+    <string name="sk_find_screen">Encontrar a tela automaticamente</string>
+    <string name="sk_found">Tela encontrada. Arraste os cantos para ajustar.</string>
+    <string name="sk_not_found">Não foi possível encontrar a tela. Arraste a área azul até ela.</string>
+    <string name="sk_add_key">Adicionar tecla física</string>
+    <string name="sk_add_key_sub">Escolha a tecla e arraste a caixa amarela até esse botão na imagem. Tocar nela na VM pressiona a tecla.</string>
+    <string name="sk_remove_key">Remover tecla selecionada</string>
+    <string name="sk_reset_screen">Redefinir área da tela</string>
+    <string name="sk_remove_png">Remover PNG</string>
+    <string name="sk_hint">Arraste a área azul da tela ou uma tecla amarela para mover, um ponto do canto para redimensionar.</string>
+    <string name="sk_empty">Adicione um PNG de um celular para criar uma skin de aparelho</string>
+    <string name="sk_bar_hidden">Esta skin tem teclas próprias, então a barra na tela fica oculta enquanto ela é exibida.</string>
 </resources>
