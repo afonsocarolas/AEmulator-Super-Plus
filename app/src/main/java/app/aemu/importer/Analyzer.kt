@@ -2,6 +2,7 @@
 package app.aemu.importer
 
 import android.content.Context
+import app.aemu.core.CupcakeCompat
 import app.aemu.core.Engine
 import app.aemu.core.GuestImage
 import app.aemu.core.InitPlan
@@ -79,10 +80,13 @@ class Analyzer(private val ctx: Context, private val paths: VmPaths, private val
         if (api >= 26) warnings += "Android ${release}: groundwork only. The engine has no /dev/hwbinder or /dev/vndbinder yet, " +
             "so the Treble (HIDL) hardware services cannot start and boot is expected to stop early; the VM log shows where."
         else if (api >= 21) warnings += "Android ${release}: support is experimental (ART, SELinux)."
+        if (CupcakeCompat.applies(api)) warnings += "Android ${release}: support is experimental; it runs with software graphics at 320x480."
 
         val density = all["ro.sf.lcd_density"]?.toIntOrNull() ?: 240
         val engine = Engine.forApi(api)
         val settings = when {
+            // Android 1.5: HVGA phones at 160 dpi, drawn in software (see CupcakeCompat)
+            CupcakeCompat.applies(api) -> CupcakeCompat.importDefaults(VmSettings(fbHz = 60, touchHz = 60))
             engine == Engine.GB || api < 14 -> VmSettings(width = 480, height = 800, density = 240, fbHz = 60, touchHz = 60)
             // 540×960 — лучший баланс скорости и чёткости под эмуляцией; поменять можно в настройках
             density <= 160 -> VmSettings(width = 480, height = 800, density = 240)

@@ -54,6 +54,7 @@ export NDK="$ANDROID_HOME/ndk/22.1.7171670"
 (cd native/camerahal && sh build.sh)
 (cd native/sensorhal && sh build.sh)
 sh native/setupctl/build.sh
+sh native/cupcakegl/build.sh
 ```
 
 - `guestshim`: preload shim, recovery shim and `aemu_true.so`.
@@ -62,6 +63,8 @@ sh native/setupctl/build.sh
 - `sensorhal`: `sensors.aemu_host.so`, the experimental legacy motion-sensor
   bridge. Its host transport/lifecycle smoke test is `sh native/sensorhal/tests/run.sh`
   and requires a C compiler with ASan/UBSan (no guest firmware needed).
+- `cupcakegl`: `libpixelflinger_cupcake.so`, Cupcake's (Android 1.5) software renderer built from the
+  AOSP sources without run-time code generation; see `native/cupcakegl/README.md`.
 - `setupctl`: `aemu-setup.jar`, setup and guest rotation helpers;
   requires SDK 36/d8 and JDK 17+.
 - Additional upstream source-backed scripts: `native/hostjni`, `native/apwrap`,

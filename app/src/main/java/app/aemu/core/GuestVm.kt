@@ -452,6 +452,8 @@ class GuestVm(val ctx: Context, val img: GuestImage, val lowPowerBoot: Boolean =
         }
         overrides["ro.sf.lcd_density"] = s.density.toString()
         overrides["qemu.sf.lcd_density"] = s.density.toString()
+        // Android 1.5: keep EGL on the software renderer (its vendor driver wants the real GPU)
+        overrides.putAll(CupcakeCompat.props(img.api))
         // Panels mounted sideways (Galaxy Tab 10.1 GT-P7300: "ro.sf.hwrotation=90", fb 800x1280 on a landscape UI) make
         // SurfaceFlinger turn the whole UI inside the framebuffer. Here the framebuffer IS the screen the user sees at
         // the resolution they picked, so the rotation only shows up as a UI lying on its side: 1280x720 came up as a
@@ -1057,7 +1059,11 @@ class GuestVm(val ctx: Context, val img: GuestImage, val lowPowerBoot: Boolean =
                             failure = "zygote exited (code $code)" + if (code == 137) " — SIGKILL (cause not established)" else ""
                             if (code == 137 && guestLogHas("No original dex files found"))
                                 failure = "system_server cannot start: the precompiled code of the framework (system/framework/oat) is missing from this container — import the firmware again"
-                            log("✖ $failure"); setState(State.FAILED)
+                            log("✖ $failure")
+                            // zygote only kills itself for system_server: say what the guest log says about it
+                            val why = runCatching { CupcakeCompat.crashSummary(GuestLog.tail(paths.root), processTail(paths.log("zygote"))) }.getOrDefault(emptyList())
+                            if (why.isNotEmpty()) { log("guest log before the crash:"); why.forEach { log("  $it") } }
+                            setState(State.FAILED)
                         } else if (state != State.FAILED && everBooted) {
                             zygoteRestarts++
                             log("✖ zygote crashed (code $code), restarting system ($zygoteRestarts)")
@@ -1219,6 +1225,14 @@ class GuestVm(val ctx: Context, val img: GuestImage, val lowPowerBoot: Boolean =
         }
         runCatching { startService(z) }
     }
+
+    /** the last lines a guest process wrote to its stdout/stderr file */
+    private fun processTail(f: File, bytes: Long = 16_384): List<String> = runCatching {
+        java.io.RandomAccessFile(f, "r").use { r ->
+            val n = minOf(r.length(), bytes).toInt(); r.seek(r.length() - n)
+            String(ByteArray(n).also { r.readFully(it) }, Charsets.UTF_8).lines().filter { it.isNotBlank() }
+        }
+    }.getOrDefault(emptyList())
 
     private fun guestLogHas(text: String): Boolean = runCatching {
         val f = File(paths.root, "dev/log/main")

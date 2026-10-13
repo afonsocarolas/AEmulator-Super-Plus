@@ -121,6 +121,7 @@ class TreeFixer(
         protectOat()
         fixThemeXml()
         parkWhetstone()
+        installCupcakeRenderer()
         parkPlayReady()
         swapMtkAudioHal()
         // glibc (Google TV) firmware: the engine's GL shims are bionic libraries (NEEDED libdl.so / libc.so) and cannot
@@ -440,6 +441,30 @@ class TreeFixer(
      * process in turn waits for the same lock. The watchdog then restarts system_server over and over and the boot never
      * finishes. Whetstone only does background-power bookkeeping, so its package is set aside.
      */
+    /**
+     * Android 1.5: Cupcake's libpixelflinger generates ARM code for its pixel pipelines in a malloc()ed buffer and jumps
+     * into it. qemu-user does not make heap pages executable (old kernels did, READ_IMPLIES_EXEC), so SurfaceFlinger,
+     * which runs inside system_server on 1.5, died with SIGSEGV right after "ARMAssembler: generated scanline...".
+     * The engine's copy is the same Cupcake source built without the code generator (native/cupcakegl). The firmware's
+     * own copy is parked once and is the one a later delta OTA patches.
+     */
+    private fun installCupcakeRenderer() = runCatching {
+        if (!CupcakeCompat.applies(img.api)) return@runCatching
+        val lib = File(root, "system/lib/libpixelflinger.so")
+        val parked = File(root, "system/.aemu-parked/system#lib#libpixelflinger.so")
+        if (!parked.exists() && lib.isFile) {
+            parked.parentFile?.mkdirs()
+            if (!lib.renameTo(parked)) return@runCatching
+        }
+        if (!parked.exists()) return@runCatching   // no renderer of its own: leave the tree alone
+        val asset = ctx.assets.open("engines/common/libpixelflinger_cupcake.so").use { it.readBytes() }
+        if (!lib.isFile || lib.length() != asset.size.toLong() || !lib.readBytes().contentEquals(asset)) {
+            lib.writeBytes(asset)
+            lib.setReadable(true, false)
+            log("Android 1.5: software renderer without run-time code generation installed (libpixelflinger)")
+        }
+    }
+
     private fun parkWhetstone() {
         val apk = File(root, "system/app/Whetstone.apk")
         if (!apk.isFile || !File(root, "system/app/miuisystem.apk").isFile) return

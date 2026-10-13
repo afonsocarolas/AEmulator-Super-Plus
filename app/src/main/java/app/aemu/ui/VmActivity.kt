@@ -257,7 +257,7 @@ class VmActivity : ComponentActivity() {
                 density = resources.displayMetrics.densityDpi))
         } else img
         vm = if (cur != null && cur.img.id == img.id) cur
-            else GuestVm(applicationContext, resolved, intent.getBooleanExtra(EXTRA_LOW_POWER, false)).also { it.recoveryMode = intent.getBooleanExtra(EXTRA_RECOVERY, false); VmHost.vm = it }
+            else GuestVm(applicationContext, app.aemu.core.CupcakeCompat.adjust(resolved), intent.getBooleanExtra(EXTRA_LOW_POWER, false)).also { it.recoveryMode = intent.getBooleanExtra(EXTRA_RECOVERY, false); VmHost.vm = it }
         vm.onPower = { reboot, reason -> runOnUiThread { if (reboot) rebootVm(reason == "recovery") else stopVm() } }
         val s = vm.settings
         if (s.keepScreenOn) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
