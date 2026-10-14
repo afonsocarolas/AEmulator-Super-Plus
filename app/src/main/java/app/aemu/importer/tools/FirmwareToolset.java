@@ -58,6 +58,8 @@ public final class FirmwareToolset {
         if (h.length >= 4 && u32(h,0) == 0xAA55DD44L) return "LG_TOT";
         // Microsoft Cabinet: how LG's support tool delivers firmware (*.cab around a .tot / .kdz / .bin)
         if (Cab.isCab(h)) return "CAB";
+        // LG .dz: its own magic
+        if (LgKdz.isDz(h)) return "LG_DZ";
         if (h.length >= 8 && utf16(h,0,44).startsWith("BP_R")) return "PAC";
         if (starts(h, "Multi-Interface")) return "SBF";
         if (starts(h, "HTCIMAGE")) return "NBH";
@@ -82,6 +84,8 @@ public final class FirmwareToolset {
         if (h.length >= 2 && (h[0]&0xff)==0xfd && (h[1]&0xff)==0x37) return "XZ";
         if (h.length >= 3 && h[0]=='B' && h[1]=='Z' && h[2]=='h') return "BZ2";
         if (looksTar(h)) return "TAR";
+        // LG KDZ: a file table (around a .dz, a .cab, a DLL); parsed, so only after every cheap header check
+        if (LgKdz.looksLikeKdz(f, h, n.endsWith(".kdz"))) return "LG_KDZ";
         // the FAT/RFS boot sector may sit a few sectors into the image (up to 8 MiB)
         if (Rfs.probe(f)) return "RFS";
         return "UNKNOWN";
@@ -99,6 +103,8 @@ public final class FirmwareToolset {
             case "HTC_SIGNED": return htcArtifacts(HtcFirmware.unwrapSigned(input, work, log));
             case "LG_TOT": return Lg.extractTot(input, work, log);
             case "CAB": return Cab.extract(input, work, log);
+            case "LG_KDZ": return LgKdz.extractKdz(input, work, log);
+            case "LG_DZ": return LgKdz.extractDz(input, work, log);
             case "LG_BIN": return Lg.extractBin(input, work, log);
             case "RFS": return Collections.singletonList(new Artifact(Rfs.toZip(input, work, log), Role.ARCHIVE));
             case "SQUASHFS": return Collections.singletonList(new Artifact(SquashFs.toZip(input, work, log), Role.ARCHIVE));
@@ -1305,7 +1311,7 @@ public final class FirmwareToolset {
                 case"SPARSE":{File d=new File(out,safe(f.getName()));copy(f,d);break;}
                 case"EXT4":{File d=new File(out,safe(f.getName()));copy(f,d);break;}
                 case"SQUASHFS":{File z=SquashFs.toZip(f,out,log);unzip(z,out);break;}
-                case"SBF":case"PAC":case"NBH":case"LG_BIN":case"LG_TOT":case"CAB":case"OFP":case"OPS":case"SUPER":case"RFS":case"OTA_PAYLOAD":case"OTA_DAT_BR":case"VDAT_LIST":case"VDAT_DATA":{List<Artifact>x=FirmwareToolset.extract(f,out,log);for(Artifact q:x)if(q.file.isFile())extractAny(q.file,new File(out,"_"+safe(q.file.getName())),log,depth+1);return;}
+                case"SBF":case"PAC":case"NBH":case"LG_BIN":case"LG_TOT":case"CAB":case"LG_KDZ":case"LG_DZ":case"OFP":case"OPS":case"SUPER":case"RFS":case"OTA_PAYLOAD":case"OTA_DAT_BR":case"VDAT_LIST":case"VDAT_DATA":{List<Artifact>x=FirmwareToolset.extract(f,out,log);for(Artifact q:x)if(q.file.isFile())extractAny(q.file,new File(out,"_"+safe(q.file.getName())),log,depth+1);return;}
                 default:genericScan(f,out,log);return;
             }
             for(File x:allFiles(out)){if(x.equals(f)||x.getName().equals("report.json"))continue;String sub=detect(x);if(!"UNKNOWN".equals(sub)&&!sub.equals(k))extractAny(x,new File(out,"_"+safe(x.getName())),log,depth+1);}

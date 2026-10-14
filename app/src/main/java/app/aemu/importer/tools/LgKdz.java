@@ -146,6 +146,11 @@ final class LgKdz {
         IOException firstError = null;
         try (RandomAccessFile r = new RandomAccessFile(f, "r")) {
             Table t = readTable(r);
+            if (t == null && looksEncrypted(readAt(r, 0, (int) Math.min(r.length(), 65536)))) {
+                // LG's older updates (2012-2013, e.g. LG Optimus L7 V10K_00.kdz) are encrypted from the first byte
+                throw new IOException("this LG KDZ is encrypted (older LG updates were) and cannot be imported; "
+                    + "look for an unencrypted copy of the same firmware, such as a recovery-flashable ZIP");
+            }
             if (t == null) {
                 // unknown table layout: the .dz is still recognisable by its own magic
                 long at = scanMagic(r, DZ_MAGIC_BYTES);
@@ -164,7 +169,7 @@ final class LgKdz {
                 try {
                     if (isDz(mag) || (lower.endsWith(".dz") && mag.length >= 4)) {
                         out.addAll(extractDzRange(r, e.offset, e.size, new File(work, "dz" + (n++)), log));
-                    } else if (mag.length >= 4 && isLgBin(u32(mag, 0))) {
+                    } else if ((mag.length >= 4 && isLgBin(u32(mag, 0))) || Cab.isCab(mag) || lower.endsWith(".cab")) {
                         File dir = new File(work, "bin" + (n++)); dir.mkdirs();
                         File copy = new File(dir, safe(e.name));
                         copyRange(r, e.offset, e.size, copy);
@@ -428,6 +433,16 @@ final class LgKdz {
             out.add(a);
         }
         return out;
+    }
+
+    /** Encrypted data: close to 8 bits of entropy per byte and no file table (a real KDZ table is mostly zero padding). */
+    static boolean looksEncrypted(byte[] b) {
+        if (b.length < 4096) return false;
+        int[] count = new int[256];
+        for (byte x : b) count[x & 0xff]++;
+        double h = 0;
+        for (int c : count) if (c > 0) { double p = (double) c / b.length; h -= p * Math.log(p) / Math.log(2); }
+        return h > 7.9;
     }
 
     private static boolean isLgBin(long m) { return m == 0xAA55EC44L || m == 0xAA55A5A5L || m == 0xAA55DD44L; }

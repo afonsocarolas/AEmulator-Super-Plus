@@ -1,4 +1,4 @@
-/* AEmulator Super Plus, 2026-10-12: VM screen themes; 2026-10-13: device skins. GPL-3.0; see LICENSE and NOTICE.md. */
+/* AEmulator Super Plus, 2026-10-12: VM screen themes; 2026-10-13: device skins; 2026-10-14: built-in skins. GPL-3.0; see LICENSE and NOTICE.md. */
 package app.aemu.core
 
 import android.content.Context
@@ -101,7 +101,7 @@ object VmThemes {
             pressColor = 0xA633B5E5.toInt(), pressGlow = true, halo = true, builtIn = true),
         VmTheme("lollipop", "Lollipop 5.x", GlyphSet.LOLLIPOP, barColor = 0xFF000000.toInt(), iconColor = 0xFFFFFFFF.toInt(),
             pressColor = 0x40FFFFFF, pressGlow = true, builtIn = true),
-    )
+    ) + BuiltInSkins.themes()
 
     fun dir(ctx: Context) = File(ctx.filesDir, "themes").apply { mkdirs() }
     private fun store(ctx: Context) = AtomicFile(File(dir(ctx), FILE))
@@ -170,7 +170,11 @@ object VmThemes {
         return name
     }
 
-    fun imageFile(ctx: Context, t: VmTheme): File? = t.frameImage?.let { File(dir(ctx), it) }?.takeIf { it.isFile }
+    fun imageFile(ctx: Context, t: VmTheme): File? = t.frameImage?.let { name ->
+        // a built-in skin's picture (also in a copy the user edits): drawn by the app into filesDir/skins on first use
+        if (BuiltInSkins.isBuiltInFile(name)) BuiltInSkins.file(File(ctx.filesDir, "skins"), name)
+        else File(dir(ctx), name).takeIf { it.isFile }
+    }
 
     /** A shareable .aetheme file: the theme as JSON, its frame picture embedded. */
     fun export(ctx: Context, t: VmTheme): ByteArray {

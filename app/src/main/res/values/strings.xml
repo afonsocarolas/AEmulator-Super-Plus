@@ -491,4 +491,5 @@
     <string name="bs_when_start">When starting</string>
     <string name="bs_when_finished">When booted</string>
     <string name="bs_note">Plays at your phone\'s media volume. The built-in sounds are made by the app.</string>
+    <string name="th_skin_line">%1$d×%2$d device skin · %3$d keys</string>
 </resources>

@@ -96,6 +96,22 @@ internal fun VmThemeRow() {
     if (open) ThemeSheet(onDismiss = { open = false; version++ })
 }
 
+/** a device skin's picture, small, in the theme list (decoded off the main thread, cached per theme) */
+@Composable
+private fun SkinThumb(t: VmTheme) {
+    val ctx = LocalContext.current
+    val bmp by androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, t.frameImage) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            VmThemes.imageFile(ctx, t)?.let { f ->
+                runCatching { BitmapFactory.decodeFile(f.path, BitmapFactory.Options().apply { inSampleSize = 8 })?.asImageBitmap() }.getOrNull()
+            }
+        }
+    }
+    Box(Modifier.padding(end = 10.dp).width(40.dp).height(76.dp), contentAlignment = Alignment.Center) {
+        bmp?.let { Image(it, null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize()) }
+    }
+}
+
 /** Back, Home and Recents of [theme] on its bar: a small, non-interactive preview. */
 @Composable
 internal fun MiniBar(theme: VmTheme, modifier: Modifier = Modifier, pressedKey: NavButton? = null) {
@@ -150,9 +166,12 @@ private fun ThemeSheet(onDismiss: () -> Unit) {
             for (t in themes) Row(Modifier.fillMaxWidth().clickable { VmThemes.select(ctx, t.id); version++ }.padding(vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically) {
                 RadioButton(selected = t.id == selectedId, onClick = { VmThemes.select(ctx, t.id); version++ })
+                if (t.isSkin) SkinThumb(t)
                 Column(Modifier.weight(1f)) {
                     Text(t.name, style = MaterialTheme.typography.titleSmall)
-                    MiniBar(t, Modifier.fillMaxWidth(0.85f).padding(top = 4.dp))
+                    if (t.isSkin) Text(stringResource(R.string.th_skin_line, t.skinWidth, t.skinHeight, t.skinKeys.size),
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    else MiniBar(t, Modifier.fillMaxWidth(0.85f).padding(top = 4.dp))
                 }
                 // built-in themes are copied before editing; only own themes can be deleted
                 IconButton(onClick = { editing = if (t.builtIn) t.copy(id = UUID.randomUUID().toString(), name = ctx.getString(R.string.th_copy_of, t.name), builtIn = false) else t }) {

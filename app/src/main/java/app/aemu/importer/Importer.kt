@@ -248,7 +248,7 @@ class Importer(
         // HTC RUU installers only: a bare *.exe in an archive is usually adb/fastboot/driver tooling
         if (n.endsWith(".exe") && n.substringAfterLast('/').startsWith("ruu")) return true
         return n.endsWith(".pac") || n.endsWith(".sbf") || n.endsWith(".nbh") ||
-            n.endsWith(".tot") || n.endsWith(".cab") || isLikelyLgBinName(n) || n.endsWith(".ofp") ||
+            n.endsWith(".tot") || n.endsWith(".cab") || n.endsWith(".kdz") || n.endsWith(".dz") || isLikelyLgBinName(n) || n.endsWith(".ofp") ||
             n.endsWith(".ops") || n.endsWith(".pkg") || n.endsWith(".rfs") ||
             n.endsWith(".squashfs") || n.endsWith(".new.dat") || n.endsWith(".new.dat.br") ||
             n.endsWith(".transfer.list") || n == "payload.bin" || n == "super.img"

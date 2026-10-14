@@ -457,4 +457,5 @@
     <string name="bs_when_start">Ao iniciar</string>
     <string name="bs_when_finished">Ao terminar</string>
     <string name="bs_note">Toca no volume de mídia do celular. Os sons incluídos são criados pelo app.</string>
+    <string name="th_skin_line">Skin de aparelho %1$d×%2$d · %3$d teclas</string>
 </resources>
