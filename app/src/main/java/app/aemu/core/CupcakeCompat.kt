@@ -1,4 +1,4 @@
-/* AEmulator Super Plus, 2026-10-13: Android 1.5 (Cupcake) support. GPL-3.0; see LICENSE and NOTICE.md. */
+/* AEmulator Super Plus, 2026-10-13: Android 1.5 (Cupcake) support; 2026-10-14: 1.6 (Donut). GPL-3.0; see LICENSE and NOTICE.md. */
 package app.aemu.core
 
 /**
@@ -14,17 +14,27 @@ package app.aemu.core
  *  - no density support yet (1.6): the phones were HVGA, 320x480 at 160 dpi;
  *  - no multitouch (2.0): EventHub only takes a device with BTN_TOUCH + ABS_X/ABS_Y as a touchscreen, and
  *    KeyInputQueue reads ABS_X/ABS_Y/ABS_PRESSURE, so the screen is reported and driven as single-touch.
+ *
+ * Android 1.6 (API 4, Donut) shares the rest: its libpixelflinger is the same source (only the code generator's
+ * headers differ, checked against android-1.6_r1) with the same malloc()ed code cache, multitouch only came with 2.0,
+ * and it also runs with software graphics: with the GPU bridge its screen stayed black once the renderer stopped
+ * crashing, while Cupcake's software path shows the UI.
  */
 object CupcakeCompat {
     const val MAX_API = 3
 
     fun applies(api: Int) = api in 1..MAX_API
 
-    /** Settings a Cupcake system runs with, whatever an earlier import or the settings screen stored. */
+    /** Android 1.5-1.6: the engine's PixelFlinger build and a single-touch screen */
+    const val MAX_PRE_ECLAIR_API = 4
+    fun preEclair(api: Int) = api in 1..MAX_PRE_ECLAIR_API
+
+    /** Settings a 1.5/1.6 system runs with, whatever an earlier import or the settings screen stored. */
     fun adjust(img: GuestImage): GuestImage {
-        if (!applies(img.api)) return img
+        if (!preEclair(img.api)) return img
         val s = img.settings
-        return if (s.gpu || s.hwui || s.mtMode != SINGLE_TOUCH) img.copy(settings = s.copy(gpu = false, hwui = false, mtMode = SINGLE_TOUCH)) else img
+        val next = s.copy(gpu = false, hwui = false, mtMode = SINGLE_TOUCH)
+        return if (next != s) img.copy(settings = next) else img
     }
 
     /** InputService.mtMode for ABS_X/ABS_Y/ABS_PRESSURE + BTN_TOUCH events */

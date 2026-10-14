@@ -22,8 +22,8 @@ class GuestRunner(
     var tbFlush = 0
     var noSmc = false
     var noTcgOpt = false
-    /** qemu presents the touchscreen as single-touch (BTN_TOUCH + ABS_X/ABS_Y): Android 1.5 knows no multitouch */
-    var singleTouch = CupcakeCompat.applies(img.api)
+    /** qemu presents the touchscreen as single-touch (BTN_TOUCH + ABS_X/ABS_Y): Android 1.5-1.6 know no multitouch */
+    var singleTouch = CupcakeCompat.preEclair(img.api)
     var binderVerbose = false
     var sdcardHost: File? = null
     /** user's extra qemu options from firmware settings: KEY=VALUE tokens become env vars, the rest go to qemu */

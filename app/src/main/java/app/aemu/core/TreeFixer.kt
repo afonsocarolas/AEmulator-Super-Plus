@@ -442,14 +442,14 @@ class TreeFixer(
      * finishes. Whetstone only does background-power bookkeeping, so its package is set aside.
      */
     /**
-     * Android 1.5: Cupcake's libpixelflinger generates ARM code for its pixel pipelines in a malloc()ed buffer and jumps
+     * Android 1.5-1.6: Cupcake's and Donut's libpixelflinger generates ARM code for its pixel pipelines in a malloc()ed buffer and jumps
      * into it. qemu-user does not make heap pages executable (old kernels did, READ_IMPLIES_EXEC), so SurfaceFlinger,
      * which runs inside system_server on 1.5, died with SIGSEGV right after "ARMAssembler: generated scanline...".
      * The engine's copy is the same Cupcake source built without the code generator (native/cupcakegl). The firmware's
      * own copy is parked once and is the one a later delta OTA patches.
      */
     private fun installCupcakeRenderer() = runCatching {
-        if (!CupcakeCompat.applies(img.api)) return@runCatching
+        if (!CupcakeCompat.preEclair(img.api)) return@runCatching
         val lib = File(root, "system/lib/libpixelflinger.so")
         val parked = File(root, "system/.aemu-parked/system#lib#libpixelflinger.so")
         if (!parked.exists() && lib.isFile) {
@@ -461,7 +461,7 @@ class TreeFixer(
         if (!lib.isFile || lib.length() != asset.size.toLong() || !lib.readBytes().contentEquals(asset)) {
             lib.writeBytes(asset)
             lib.setReadable(true, false)
-            log("Android 1.5: software renderer without run-time code generation installed (libpixelflinger)")
+            log("Android ${img.release}: software renderer without run-time code generation installed (libpixelflinger)")
         }
     }
 

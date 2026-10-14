@@ -1067,6 +1067,11 @@ class GuestVm(val ctx: Context, val img: GuestImage, val lowPowerBoot: Boolean =
                         } else if (state != State.FAILED && everBooted) {
                             zygoteRestarts++
                             log("✖ zygote crashed (code $code), restarting system ($zygoteRestarts)")
+                            // the first crash after a completed boot: what the guest said about it (later ones usually repeat it)
+                            if (zygoteRestarts == 1) {
+                                val why = runCatching { CupcakeCompat.crashSummary(GuestLog.tail(paths.root), processTail(paths.log("zygote"))) }.getOrDefault(emptyList())
+                                if (why.isNotEmpty()) { log("guest log before the crash:"); why.forEach { log("  $it") } }
+                            }
                             restartZygote()
                         }
                         continue

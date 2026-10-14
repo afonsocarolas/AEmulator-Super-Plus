@@ -13,6 +13,19 @@ class CupcakeCompatTest {
         assertTrue(CupcakeCompat.props(8).isEmpty())
     }
 
+    @Test fun donutRunsLikeCupcake() {
+        assertTrue(CupcakeCompat.preEclair(3)); assertTrue(CupcakeCompat.preEclair(4)); assertEquals(false, CupcakeCompat.preEclair(5))
+        assertEquals(false, CupcakeCompat.applies(4))
+        fun img(api: Int) = GuestImage(id = "x", name = "x", release = "1.6", api = api, brand = "", model = "", skin = "",
+            engine = Engine.KK, bootclasspath = "", exports = emptyMap(), dirs = emptyList(), services = emptyList(),
+            sdcardPath = "/sdcard", settings = VmSettings(gpu = true, hwui = true, mtMode = 0), createdAt = 0)
+        val donut = CupcakeCompat.adjust(img(4)).settings
+        assertEquals(false, donut.gpu); assertEquals(CupcakeCompat.SINGLE_TOUCH, donut.mtMode)
+        val cupcake = CupcakeCompat.adjust(img(3)).settings
+        assertEquals(false, cupcake.gpu); assertEquals(CupcakeCompat.SINGLE_TOUCH, cupcake.mtMode)
+        assertEquals(VmSettings(gpu = true, hwui = true, mtMode = 0), CupcakeCompat.adjust(img(8)).settings)
+    }
+
     @Test fun importDefaultsAreHvgaSoftware() {
         val s = CupcakeCompat.importDefaults(VmSettings())
         assertEquals(320, s.width); assertEquals(480, s.height); assertEquals(160, s.density)
