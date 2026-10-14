@@ -477,4 +477,5 @@
     <string name="sk_hint">Arraste a área azul do ecrã ou uma tecla amarela para mover, um ponto do canto para redimensionar.</string>
     <string name="sk_empty">Adicione um PNG de um telemóvel para criar uma skin de aparelho</string>
     <string name="sk_bar_hidden">Esta skin tem teclas próprias, por isso a barra no ecrã fica oculta enquanto é mostrada.</string>
+    <string name="warning_dismiss">Ocultar este aviso</string>
 </resources>

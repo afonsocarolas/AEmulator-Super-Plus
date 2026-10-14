@@ -8,7 +8,11 @@
  * and the daemon's messages back into BR_* records, mmap() of the device yields plain memory (received transactions
  * are copied into malloc'ed blocks that BC_FREE_BUFFER releases).
  *
- * The kernel ABI is the 64-bit one (binder protocol 8), which every Treble build uses, also on 32-bit ARM.
+ * Two kernel ABIs: the 64-bit one (binder protocol 8, every device that launched with 8.0) and the 32-bit one
+ * (protocol 7, BINDER_IPC_32BIT: 32-bit phones upgraded from 7.x, e.g. Motorola's Moto E/G 2017 line), where every
+ * binder_uintptr_t and binder_size_t is 4 bytes. The app reads which one the firmware's libhwbinder was built for and
+ * passes it in AEMU_HWB_PROTOCOL; the daemon wire format is the same for both, the binder objects inside a
+ * transaction keep the guest's layout (the daemon learns it from HELLO).
  * Each guest thread gets its own connection (the kernel keeps per-thread state); the descriptor open() returned
  * belongs to the opening thread, so a looper that polls it (hwservicemanager) wakes up when the daemon sends it
  * work. The wire format is described in app/src/main/java/app/aemu/core/HwBinderDaemon.kt.
@@ -29,6 +33,7 @@ extern int *__errno(void);
 extern void *malloc(ulong n);
 extern void free(void *p);
 extern void *dlsym(void *handle, const char *name);
+extern char *getenv(const char *name);
 #define RTLD_NEXT ((void *)0xfffffffe) /* 32-bit bionic */
 
 __attribute__((naked, noinline)) static long sys6(long n, long a, long b, long c, long d, long e, long f) {
@@ -82,6 +87,24 @@ static int fail(int e) { *__errno() = e; return -1; }
 #define BUF_HAS_PARENT 0x01
 
 struct bwr { u64 write_size, write_consumed, write_buffer, read_size, read_consumed, read_buffer; };
+struct bwr32 { u32 write_size, write_consumed, write_buffer, read_size, read_consumed, read_buffer; };
+
+/* protocol 7 (32-bit binder ABI) */
+#define BR_TRANSACTION_32 0x80287202u
+#define BR_REPLY_32       0x80287203u
+#define BR_DEAD_BINDER    0x8008720fu
+#define BR_CLEAR_DEATH_DONE 0x80087210u
+
+/* 7 or 8, from AEMU_HWB_PROTOCOL (set by the app from the firmware's libhwbinder); 8 when absent */
+static int g_proto;
+static int proto(void) {
+    if (!g_proto) {
+        const char *v = getenv("AEMU_HWB_PROTOCOL");
+        g_proto = v && v[0] == '7' && !v[1] ? 7 : 8;
+    }
+    return g_proto;
+}
+#define NARROW (proto() == 7)
 
 /* ---------------------------------------------------------------- daemon wire format */
 
@@ -168,8 +191,8 @@ static int connect_daemon(int dev, int tid) {
     while (path[n]) { a.path[n] = path[n]; n++; }
     a.path[n] = 0;
     if (sys3(SYS_connect, s, &a, 2 + n + 1) < 0) { sys3(SYS_close, s, 0, 0); return -1; }
-    u32 hello[4] = { (u32)dev, (u32)sys3(SYS_getpid, 0, 0, 0), (u32)tid, (u32)sys3(SYS_geteuid32, 0, 0, 0) };
-    if (send_msg((int)s, M_HELLO, hello, 4) < 0) { sys3(SYS_close, s, 0, 0); return -1; }
+    u32 hello[5] = { (u32)dev, (u32)sys3(SYS_getpid, 0, 0, 0), (u32)tid, (u32)sys3(SYS_geteuid32, 0, 0, 0), (u32)proto() };
+    if (send_msg((int)s, M_HELLO, hello, 5) < 0) { sys3(SYS_close, s, 0, 0); return -1; }
     return (int)s;
 }
 
@@ -227,19 +250,27 @@ static ulong align8(ulong n) { return (n + 7) & ~7ul; }
 
 /* M_TXN: u32 is_reply, handle, code, flags, data_len, off_count, sg_count; data (pad 8); u32 offsets (pad 8);
  * per sg buffer: u32 object index, u32 length, bytes (pad 8) */
+/* binder_transaction_data and binder_buffer_object (BINDER_TYPE_PTR) in the two ABIs */
+static u32 off_at(const u8 *offs, u32 i) { return NARROW ? get32(offs + 4 * i) : (u32)get64(offs + 8 * i); }
+static ulong ptr_obj_size(void) { return NARROW ? 24 : 40; }
+static ulong ptr_obj_buf(const u8 *o) { return NARROW ? get32(o + 8) : (ulong)get64(o + 8); }
+static u64 ptr_obj_len(const u8 *o) { return NARROW ? get32(o + 12) : get64(o + 16); }
+
 static int send_txn(struct conn *c, const u8 *tr, int reply) {
-    u32 handle = get32(tr), code = get32(tr + 16), flags = get32(tr + 20);
-    u64 dsz = get64(tr + 32), osz = get64(tr + 40);
-    const u8 *data = (const u8 *)(ulong)get64(tr + 48);
-    const u8 *offs = (const u8 *)(ulong)get64(tr + 56);
-    if (dsz > (16u << 20) || osz > (1u << 20) || (osz & 7)) return -EINVAL;
-    u32 n = (u32)(osz / 8), sg = 0;
+    int nw = NARROW;
+    u32 handle = get32(tr), code = get32(tr + (nw ? 8 : 16)), flags = get32(tr + (nw ? 12 : 20));
+    u64 dsz = nw ? get32(tr + 24) : get64(tr + 32), osz = nw ? get32(tr + 28) : get64(tr + 40);
+    const u8 *data = (const u8 *)(ulong)(nw ? get32(tr + 32) : get64(tr + 48));
+    const u8 *offs = (const u8 *)(ulong)(nw ? get32(tr + 36) : get64(tr + 56));
+    ulong osize = nw ? 4 : 8;
+    if (dsz > (16u << 20) || osz > (1u << 20) || (osz & (osize - 1))) return -EINVAL;
+    u32 n = (u32)(nw ? osz >> 2 : osz >> 3), sg = 0;
     ulong total = 4 + 4 + 28 + align8((ulong)dsz) + align8(4ul * n);
     for (u32 i = 0; i < n; i++) {
-        u32 off = (u32)get64(offs + 8 * i);
+        u32 off = off_at(offs, i);
         if ((u64)off + 4 > dsz) return -EINVAL;
-        if (get32(data + off) == T_PTR && (u64)off + 40 <= dsz) {
-            u64 len = get64(data + off + 16);
+        if (get32(data + off) == T_PTR && (u64)off + ptr_obj_size() <= dsz) {
+            u64 len = ptr_obj_len(data + off);
             if (len > (16u << 20)) return -EINVAL;
             total += 8 + align8((ulong)len); sg++;
         }
@@ -251,15 +282,15 @@ static int send_txn(struct conn *c, const u8 *tr, int reply) {
     put32(p, (u32)reply); put32(p + 4, handle); put32(p + 8, code); put32(p + 12, flags);
     put32(p + 16, (u32)dsz); put32(p + 20, n); put32(p + 24, sg); p += 28;
     copy(p, data, (ulong)dsz); for (ulong k = (ulong)dsz; k < align8((ulong)dsz); k++) p[k] = 0; p += align8((ulong)dsz);
-    for (u32 i = 0; i < n; i++) put32(p + 4 * i, (u32)get64(offs + 8 * i));
+    for (u32 i = 0; i < n; i++) put32(p + 4 * i, off_at(offs, i));
     for (ulong k = 4ul * n; k < align8(4ul * n); k++) p[k] = 0;
     p += align8(4ul * n);
     for (u32 i = 0; i < n; i++) {
-        u32 off = (u32)get64(offs + 8 * i);
-        if (get32(data + off) != T_PTR || (u64)off + 40 > dsz) continue;
-        ulong len = (ulong)get64(data + off + 16);
+        u32 off = off_at(offs, i);
+        if (get32(data + off) != T_PTR || (u64)off + ptr_obj_size() > dsz) continue;
+        ulong len = (ulong)ptr_obj_len(data + off);
         put32(p, i); put32(p + 4, (u32)len); p += 8;
-        copy(p, (const u8 *)(ulong)get64(data + off + 8), len);
+        copy(p, (const u8 *)ptr_obj_buf(data + off), len);
         for (ulong k = len; k < align8(len); k++) p[k] = 0;
         p += align8(len);
     }
@@ -278,14 +309,14 @@ static int do_write(struct conn *c, struct bwr *b) {
         const u8 *a = p + 4;
         int r = 0;
         switch (nr) {
-        case 0: case 1: r = size == 64 ? send_txn(c, a, nr == 1) : -EINVAL; break;      /* BC_TRANSACTION / BC_REPLY */
-        case 17: case 18: r = size == 72 ? send_txn(c, a, nr == 18) : -EINVAL; break;   /* the _SG variants */
-        case 3: free((void *)(ulong)get64(a)); break;                                    /* BC_FREE_BUFFER */
+        case 0: case 1: r = size == (NARROW ? 40u : 64u) ? send_txn(c, a, nr == 1) : -EINVAL; break;    /* BC_TRANSACTION / BC_REPLY */
+        case 17: case 18: r = size == (NARROW ? 44u : 72u) ? send_txn(c, a, nr == 18) : -EINVAL; break; /* the _SG variants */
+        case 3: free((void *)(ulong)(NARROW ? get32(a) : get64(a))); break;                            /* BC_FREE_BUFFER */
         case 4: case 5: case 6: case 7: { u32 w[2] = { nr, get32(a) }; r = send_msg(c->fd, M_REF, w, 2) ? -EIO : 0; break; }
         case 8: case 9: case 2: case 16: break;                     /* *_DONE, ACQUIRE_RESULT, DEAD_BINDER_DONE */
         case 11: case 12: case 13: { u32 w = nr - 10; r = send_msg(c->fd, M_LOOPER, &w, 1) ? -EIO : 0; break; }
         case 14: case 15: {                                          /* (CLEAR_)DEATH_NOTIFICATION: packed handle + cookie */
-            u64 ck = get64(a + 4);
+            u64 ck = NARROW ? get32(a + 4) : get64(a + 4);
             u32 w[4] = { nr - 13, get32(a), (u32)ck, (u32)(ck >> 32) };
             r = send_msg(c->fd, M_DEATH, w, 4) ? -EIO : 0; break;
         }
@@ -309,7 +340,9 @@ static int build_txn(const u8 *m, ulong mlen, u8 *out) {
     if (p + align8(dlen) + align8(4ul * n) > end) return -EIO;
     const u8 *data = p, *offs = p + align8(dlen);
     const u8 *sgp = offs + align8(4ul * n);
-    ulong total = align8(dlen) + 8ul * n, sgbytes = 0;
+    int nw = NARROW;
+    ulong osize = nw ? 4 : 8;
+    ulong total = align8(dlen) + osize * n, sgbytes = 0;
     const u8 *q = sgp;
     for (u32 i = 0; i < sg; i++) {
         if (q + 8 > end) return -EIO;
@@ -321,32 +354,45 @@ static int build_txn(const u8 *m, ulong mlen, u8 *out) {
     if (!blk) return -ENOMEM;
     copy(blk, data, dlen);
     u8 *ob = blk + align8(dlen);
-    for (u32 i = 0; i < n; i++) put64(ob + 8 * i, get32(offs + 4 * i));
+    for (u32 i = 0; i < n; i++) { if (nw) put32(ob + 4 * i, get32(offs + 4 * i)); else put64(ob + 8 * i, get32(offs + 4 * i)); }
     /* scatter-gather buffers go behind the offsets; their objects and parents point at the new copies */
-    u8 *dst = ob + 8ul * n;
+    u8 *dst = ob + osize * n;
     q = sgp;
     for (u32 i = 0; i < sg; i++) {
         u32 idx = get32(q), len = get32(q + 4);
         copy(dst, q + 8, len);
         if (idx < n) {
             u32 off = get32(offs + 4 * idx);
-            if (off + 40 <= dlen) {
-                put64(blk + off + 8, (u64)(ulong)dst);
+            if (off + ptr_obj_size() <= dlen) {
+                if (nw) put32(blk + off + 8, (u32)(ulong)dst); else put64(blk + off + 8, (u64)(ulong)dst);
                 if (get32(blk + off + 4) & BUF_HAS_PARENT) {
-                    u32 parent = (u32)get64(blk + off + 24), poff = (u32)get64(blk + off + 32);
+                    /* parent, parent_offset: binder_size_t; the kernel writes a binder_uintptr_t into the parent */
+                    u32 parent = nw ? get32(blk + off + 16) : (u32)get64(blk + off + 24);
+                    u32 poff = nw ? get32(blk + off + 20) : (u32)get64(blk + off + 32);
                     if (parent < n) {
                         u32 po = get32(offs + 4 * parent);
-                        u8 *pbuf = (u8 *)(ulong)get64(blk + po + 8);
-                        u64 plen = get64(blk + po + 16);
-                        if (po + 40 <= dlen && (u64)poff + 8 <= plen) put64(pbuf + poff, (u64)(ulong)dst);
+                        if (po + ptr_obj_size() <= dlen) {
+                            u8 *pbuf = (u8 *)ptr_obj_buf(blk + po);
+                            u64 plen = ptr_obj_len(blk + po);
+                            if (nw) { if ((u64)poff + 4 <= plen) put32(pbuf + poff, (u32)(ulong)dst); }
+                            else if ((u64)poff + 8 <= plen) put64(pbuf + poff, (u64)(ulong)dst);
+                        }
                     }
                 }
             }
         }
         dst += align8(len); q += 8 + align8(len);
     }
-    put32(out, reply ? BR_REPLY : BR_TRANSACTION);
     u8 *t = out + 4;
+    if (nw) {
+        put32(out, reply ? BR_REPLY_32 : BR_TRANSACTION_32);
+        put32(t, get32(m)); put32(t + 4, get32(m + 8));  /* target.ptr, cookie */
+        put32(t + 8, code); put32(t + 12, flags); put32(t + 16, spid); put32(t + 20, seuid);
+        put32(t + 24, dlen); put32(t + 28, 4u * n);
+        put32(t + 32, (u32)(ulong)blk); put32(t + 36, (u32)(ulong)ob);
+        return 44;
+    }
+    put32(out, reply ? BR_REPLY : BR_TRANSACTION);
     copy(t, m, 16);                                   /* target.ptr, cookie */
     put32(t + 16, code); put32(t + 20, flags); put32(t + 24, spid); put32(t + 28, seuid);
     put64(t + 32, dlen); put64(t + 40, 8ull * n);
@@ -369,7 +415,7 @@ static int take_one(struct conn *c, u8 *out, ulong room, int block) {
     }
     if (r < 12) return 0;
     u32 len = get32(h), type = get32(h + 4);
-    ulong need = type == D_TXN ? 68 : 4 + ((get32(h + 8) >> 16) & 0x3fff);
+    ulong need = type == D_TXN ? (NARROW ? 44 : 68) : 4 + ((get32(h + 8) >> 16) & 0x3fff);
     if (len < 4 || len > (64u << 20) || (type != D_TXN && type != D_SIMPLE)) return -EIO;
     if (need > room) return -1;
     u8 small[64];
@@ -384,6 +430,11 @@ static int take_one(struct conn *c, u8 *out, ulong room, int block) {
         n = (int)(len - 4);
         copy(out, m, (ulong)n);
         u32 br = get32(m);
+        /* the daemon sends the 64-bit layout; protocol 7 has a 4-byte binder_uintptr_t cookie */
+        if (NARROW && (br == BR_DEAD_BINDER || br == BR_CLEAR_DEATH_DONE) && n >= 12) {
+            put32(out, br == BR_DEAD_BINDER ? 0x8004720fu : 0x80047210u);
+            n = 8;
+        }
         if ((br == BR_DEAD_REPLY || br == BR_FAILED_REPLY) && c->waiting_replies > 0) c->waiting_replies--;
     }
     if (m != small) free(m);
@@ -419,7 +470,7 @@ static int do_read(struct conn *c, struct bwr *b) {
 
 static int hwb_ioctl(struct conn *m, unsigned req, void *arg) {
     switch (req) {
-    case BINDER_VERSION: *(int *)arg = 8; return 0;
+    case BINDER_VERSION: *(int *)arg = proto(); return 0;
     case BINDER_SET_MAX_THREADS: { u32 w = *(u32 *)arg; return send_msg(m->fd, M_MAXTHREADS, &w, 1) ? fail(EIO) : 0; }
     case BINDER_SET_CONTEXT_MGR: return send_msg(m->fd, M_CTXMGR, 0, 0) ? fail(EIO) : 0;
     case BINDER_SET_IDLE_TIMEOUT: case BINDER_SET_IDLE_PRIORITY: return 0;
@@ -433,6 +484,7 @@ static int hwb_ioctl(struct conn *m, unsigned req, void *arg) {
         return 0;
     }
     case BINDER_WRITE_READ: {
+        if (NARROW) return fail(EINVAL);
         struct conn *c = thread_conn(m);
         if (!c) return fail(EIO);
         struct bwr *b = arg;
@@ -440,7 +492,18 @@ static int hwb_ioctl(struct conn *m, unsigned req, void *arg) {
         if (r == 0 && b->read_size > b->read_consumed) r = do_read(c, b);
         return r < 0 ? fail(-r) : 0;
     }
-    default: return fail(EINVAL); /* includes the 32-bit ABI: Treble builds use protocol 8 */
+    case BINDER_WRITE_READ_32: {
+        if (!NARROW) return fail(EINVAL);
+        struct conn *c = thread_conn(m);
+        if (!c) return fail(EIO);
+        struct bwr32 *n = arg;
+        struct bwr b = { n->write_size, n->write_consumed, n->write_buffer, n->read_size, n->read_consumed, n->read_buffer };
+        int r = do_write(c, &b);
+        if (r == 0 && b.read_size > b.read_consumed) r = do_read(c, &b);
+        n->write_consumed = (u32)b.write_consumed; n->read_consumed = (u32)b.read_consumed;
+        return r < 0 ? fail(-r) : 0;
+    }
+    default: return fail(EINVAL);
     }
 }
 

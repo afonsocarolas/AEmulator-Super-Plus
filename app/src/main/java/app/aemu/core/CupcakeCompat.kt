@@ -63,14 +63,23 @@ object CupcakeCompat {
         // a native crash reported by debuggerd (signal, fault address, backtrace), when the firmware runs one
         val native = recs.indexOfLast { it.tag == "DEBUG" && it.msg.contains("signal ") }
         if (native >= 0) recs.drop(native).filter { it.tag == "DEBUG" }.take(max).forEach { out += line(it) }
+        // the guest shim's crash report (aemu_crash): what the guest logged just before it, the signal, pc and lr
+        val shim = recs.indexOfLast { it.tag == "aemu_crash" && it.msg.startsWith("*** SIG") }
+        if (out.isEmpty() && shim >= 0) {
+            recs.take(shim).filter { it.tag != "aemu_crash" }.takeLast(6).forEach { out += line(it) }
+            recs.drop(shim).take(5).filter { it.tag == "aemu_crash" && !it.msg.startsWith("thread") && !it.msg.startsWith("maps") }.forEach { out += line(it) }
+        }
         // otherwise everything the guest logged last before zygote noticed, whatever its level
         if (out.isEmpty()) {
             val end = recs.indexOfLast { it.tag == "Zygote" && it.msg.contains("Exit zygote") }.let { if (it < 0) recs.size else it }
             recs.take(end).takeLast(max).forEach { out += line(it) }
         }
-        val qemu = processOut.filter { it.contains("qemu:") || it.contains("uncaught target signal") || it.contains("Segmentation") ||
-            it.contains("Illegal instruction") || it.contains("Abort") }.takeLast(5)
-        return (zygote + out).distinct() + qemu.map { "zygote output: ${it.trim().take(220)}" }
+        // zygote's own output: the program's last words before a crash report ("app_process: Unable to ..."), qemu's verdict
+        val crashAt = processOut.indexOfLast { it.startsWith("*** SIG") }
+        val said = if (crashAt > 0) processOut.take(crashAt).filter { it.isNotBlank() && !it.startsWith("dhdrun:") && !it.startsWith("===") }.takeLast(3)
+            else emptyList()
+        val qemu = processOut.filter { it.contains("uncaught target signal") || it.contains("Segmentation") || it.contains("Illegal instruction") }.takeLast(2)
+        return (zygote + out).distinct() + (said + qemu).distinct().map { "zygote output: ${it.trim().take(220)}" }
     }
 
     private fun line(r: GuestLog.Rec) = "${r.prio}/${r.tag}: ${r.msg.trim().take(220)}"

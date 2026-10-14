@@ -4,6 +4,7 @@ package app.aemu.importer
 import android.content.Context
 import app.aemu.core.CupcakeCompat
 import app.aemu.core.Engine
+import app.aemu.core.FirmwareArch
 import app.aemu.core.GuestImage
 import app.aemu.core.InitPlan
 import app.aemu.core.PropArea
@@ -75,10 +76,12 @@ class Analyzer(private val ctx: Context, private val paths: VmPaths, private val
         if (api >= 19 && plan.none { it.name == "healthd" })
             warnings += if (api >= 26) "No healthd in the boot plan (no /system/bin/healthd): system_server will die in BatteryService."
                 else "No healthd in the boot plan (no /sbin/healthd; ramdisk missing from the import?): system_server will die in BatteryService."
-        if (abi.startsWith("arm64")) warnings += "64-bit firmware: only 32-bit ARM is supported."
-        if (abi.startsWith("x86") || abi.startsWith("mips")) warnings += "Firmware is not ARM ($abi) and will not run."
-        if (api >= 26) warnings += "Android ${release}: groundwork only. The engine has no /dev/hwbinder or /dev/vndbinder yet, " +
-            "so the Treble (HIDL) hardware services cannot start and boot is expected to stop early; the VM log shows where."
+        // the programs themselves say which CPU they are for; build.prop of ports often keeps a generic ABI
+        val arch = FirmwareArch.of(root)
+        if (arch != null) FirmwareArch.problem(arch)?.let { warnings += it.replaceFirstChar(Char::uppercase) + ": it will not run." }
+        else if (abi.startsWith("arm64")) warnings += "64-bit firmware: only 32-bit ARM is supported."
+        else if (abi.startsWith("x86") || abi.startsWith("mips")) warnings += "Firmware is not ARM ($abi) and will not run."
+        if (api >= 26) warnings += "Android ${release} is experimental: boot may stop early; the VM log shows where."
         else if (api >= 21) warnings += "Android ${release}: support is experimental (ART, SELinux)."
         if (CupcakeCompat.applies(api)) warnings += "Android ${release}: support is experimental; it runs with software graphics at 320x480."
 

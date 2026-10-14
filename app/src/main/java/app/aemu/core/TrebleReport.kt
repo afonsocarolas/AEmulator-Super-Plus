@@ -32,6 +32,11 @@ object TrebleReport {
         val vendor = File(root, "vendor/build.prop").isFile || File(root, "vendor/lib").isDirectory
         val manifest = MANIFESTS.firstOrNull { File(root, it).isFile }
         out += "treble: vendor partition ${if (vendor) "present" else "missing"}, VINTF manifest ${manifest?.let { "/$it" } ?: "missing"}"
+        out += when (FirmwareArch.hwbinderProtocol(root)) {
+            7 -> "treble: libhwbinder uses binder protocol 7 (32-bit binder ABI), /dev/hwbinder speaks it"
+            8 -> "treble: libhwbinder uses binder protocol 8 (64-bit binder ABI)"
+            else -> "treble: binder protocol of libhwbinder not recognized, /dev/hwbinder assumes 7 (the engine's /dev/binder is 32-bit only)"
+        }
         val hidl = plan.filter(::isHidl)
         out += "treble: ${hidl.size} HIDL service(s) in the boot plan" + if (hidl.isEmpty()) "" else ": " + hidl.joinToString { it.name }
         for (hal in BOOT_CRITICAL) if (hidl.none { it.argv.first().contains(hal) }) out += "treble: no $hal service (boot needs it)"

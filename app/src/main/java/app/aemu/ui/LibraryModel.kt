@@ -102,6 +102,8 @@ class LibraryModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun rename(img: GuestImage, name: String) = save(img.copy(name = name))
+    /** the import notes on a system's card, once the user has read them */
+    fun dismissWarnings(img: GuestImage) = save(img.copy(warnings = emptyList()))
 
     fun updateSettings(img: GuestImage, s: VmSettings) {
         viewModelScope.launch(Dispatchers.IO) {

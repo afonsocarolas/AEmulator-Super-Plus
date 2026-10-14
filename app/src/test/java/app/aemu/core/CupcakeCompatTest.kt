@@ -59,6 +59,24 @@ class CupcakeCompatTest {
         assertTrue(out.any { it.contains("libhgl.so") })
     }
 
+    @Test fun shimCrashReportShowsItsHeadAndWhatTheProgramSaid() {
+        val log = listOf(
+            r('I', "Zygote", "earlier"),
+            r('F', "libc", "Fatal signal 6 (SIGABRT)"),
+            r('F', "aemu_crash", "*** SIGABRT pid 23938 tid 23938 addr 0x00005d82"),
+            r('F', "aemu_crash", "thread libqemu_kk.so"),
+            r('F', "aemu_crash", "maps exec 120 stack end 0x40801000"),
+            r('F', "aemu_crash", "pc 0x420d17a4 /system/lib/libaemushim.so+0x000017a4"),
+        ) + (0..30).map { r('F', "aemu_crash", "  #$it sp+0x10  0x0 /system/lib/libc.so") }
+        val out = CupcakeCompat.crashSummary(log, listOf("dhdrun: socket zygote",
+            "app_process: Unable to determine ABI list from property ro.product.cpu.abilist32.",
+            "*** SIGABRT pid 23938 tid 23938 addr 0x00005d82", "qemu: uncaught target signal 6 (Aborted) - core dumped"))
+        assertTrue(out.contains("F/libc: Fatal signal 6 (SIGABRT)"))
+        assertTrue(out.contains("F/aemu_crash: pc 0x420d17a4 /system/lib/libaemushim.so+0x000017a4"))
+        assertTrue(out.none { it.contains("#30") })
+        assertTrue(out.contains("zygote output: app_process: Unable to determine ABI list from property ro.product.cpu.abilist32."))
+    }
+
     @Test fun otherwiseTheLastLinesBeforeZygoteNoticedAndQemuSignal() {
         val log = listOf(
             r('I', "SystemServer", "Entered the Android system server!"),

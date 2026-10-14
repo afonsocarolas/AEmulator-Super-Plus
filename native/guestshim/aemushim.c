@@ -845,3 +845,13 @@ EXPORT int timerfd_create(int clock, int flags) {
     long r = sys3(350 /* timerfd_create */, clock, flags, 0);
     return r < 0 ? fail(r) : (int)r;
 }
+
+/* Android 8+: minijail sandboxes mediaextractor, media.codec and other services with a seccomp syscall filter
+ * (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, prog)). qemu-user cannot install one ("prctl(seccomp_filter) failed:
+ * Invalid argument") and minijail then aborts the service. The guest already runs inside the app's own sandbox, so
+ * the filter is reported as installed and skipped. Every other option goes to the kernel. */
+EXPORT int prctl(int option, ulong a2, ulong a3, ulong a4, ulong a5) {
+    if (option == 22 /* PR_SET_SECCOMP */) return 0;
+    long r = sys5(172 /* prctl */, option, (long)a2, (long)a3, (long)a4, (long)a5);
+    return r < 0 ? fail(r) : (int)r;
+}

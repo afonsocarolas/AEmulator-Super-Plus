@@ -35,7 +35,7 @@ class PropService(private val paths: VmPaths, private val log: (String) -> Unit)
 
     /** Разворачивает область из шаблона образа и подмешивает сохранённые persist.*. */
     @Synchronized
-    fun prepare(overrides: Map<String, String>): Boolean {
+    fun prepare(overrides: Map<String, String>, layered: List<File> = emptyList(), trie: Boolean = false): Boolean {
         close()
         val tpl = paths.propsTemplate
         val f = paths.props
@@ -45,6 +45,8 @@ class PropService(private val paths: VmPaths, private val log: (String) -> Unit)
         }
         f.parentFile?.mkdirs()
         tpl.copyTo(f, overwrite = true)
+        // Android 8+ libc reads only the trie format (no v1 compatibility mode any more)
+        if (trie && !PropArea.convertToTrie(f)) { log("props: could not convert the area to the trie format"); return false }
         rootOwned(f)
         val a = PropArea.open(f)
         if (a == null) {
@@ -59,10 +61,19 @@ class PropService(private val paths: VmPaths, private val log: (String) -> Unit)
                 if (a.put(p.name, runCatching { p.readText().trim() }.getOrDefault(""))) n++
             }
         }
+        // Android 8+: init also loads /vendor/build.prop and /odm/build.prop after /system/build.prop; ro.* keep the first
+        // value, so only what the template lacks is added (ro.product.cpu.abilist32 lives there on Treble firmware)
+        var layeredAdded = 0
+        for (file in layered) if (file.isFile) {
+            PropArea.parseProps(runCatching { file.readText() }.getOrDefault("")).forEach { (k, v) ->
+                if (a.get(k) == null && a.put(k, v)) layeredAdded++
+            }
+        }
         // наши значения важнее сохранённых гостем
         for ((k, v) in overrides) a.put(k, v)
         writes = 0; rejects = 0
-        log("props: ${a.count} entries, ${a.room()} free" + if (n > 0) ", saved persist.* $n" else "")
+        log("props: ${a.count} entries, ${a.room()} free" + (if (a.isTrie) ", trie format" else "") + (if (n > 0) ", saved persist.* $n" else "") +
+            if (layeredAdded > 0) ", vendor/odm build.prop $layeredAdded" else "")
         return true
     }
 

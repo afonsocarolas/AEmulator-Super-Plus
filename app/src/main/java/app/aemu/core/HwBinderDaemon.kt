@@ -17,7 +17,7 @@ import java.util.concurrent.LinkedBlockingQueue
  *
  * Wire format: frames of u32 length (of what follows), u32 type, payload; little endian.
  *   guest -> daemon
- *     1 HELLO        u32 dev (1 hwbinder, 2 vndbinder), pid, tid, euid      (first frame of every connection)
+ *     1 HELLO        u32 dev (1 hwbinder, 2 vndbinder), pid, tid, euid [, protocol 7/8]  (first frame of every connection)
  *     2 LOOPER       u32 1 register, 2 enter, 3 exit
  *     3 CTXMGR
  *     4 TXN          u32 is_reply, handle, code, flags, data_len, off_count, sg_count; data (pad 8);
@@ -31,7 +31,8 @@ import java.util.concurrent.LinkedBlockingQueue
  *   101 SIMPLE       u32 BR code, payload in kernel layout
  *   102 TXN          u64 target ptr, u64 cookie, u32 is_reply, flags, code, sender_pid, sender_euid, data_len,
  *                    off_count, sg_count; data, offsets and scatter-gather buffers as above
- * Binder objects in the data are translated here (node <-> handle) for the receiving process; scatter-gather
+ * Binder objects in the data are translated here (node <-> handle) for the receiving process, in the guest's own
+ * layout: 24 bytes in protocol 8, 16 in protocol 7 (the 32-bit binder ABI of upgraded 32-bit phones); scatter-gather
  * buffers travel as they are and are placed and linked by the receiving guest library.
  */
 class HwBinderDaemon(private val sockFile: File, private val log: (String) -> Unit) {
@@ -60,7 +61,8 @@ class HwBinderDaemon(private val sockFile: File, private val log: (String) -> Un
                 }
             } catch (_: Throwable) {}
         }, "hwbinder-out").apply { isDaemon = true; start() }
-        val th = world.attach(hello.u32(4), hello.u32(8), hello.u32(12)) { queue.add(it) }
+        val protocol = if (hello.body.size >= 20) hello.u32(16) else 8
+        val th = world.attach(hello.u32(4), hello.u32(8), hello.u32(12), protocol == 7) { queue.add(it) }
         try {
             while (true) {
                 val f = readFrame(inp) ?: break
@@ -89,7 +91,7 @@ class HwBinderDaemon(private val sockFile: File, private val log: (String) -> Un
     }
 }
 
-/** Frame types, BR codes and object types of the protocol above (kernel protocol 8, the 64-bit layout). */
+/** Frame types, BR codes and object types of the protocol above (BR payloads in the protocol 8 layout; the guest library narrows them). */
 object Wire {
     const val HELLO = 1; const val LOOPER = 2; const val CTXMGR = 3; const val TXN = 4; const val REF = 5
     const val DEATH = 6; const val IDLE = 7; const val THREAD_EXIT = 8; const val MAXTHREADS = 11
@@ -127,7 +129,8 @@ object Wire {
  * Reference counts are not tracked yet: handles live as long as the process that holds them.
  */
 class BinderWorld(val name: String, private val log: (String) -> Unit) {
-    class Proc(val pid: Int, val euid: Int) {
+    /** [narrow]: the 32-bit binder ABI (protocol 7), binder objects are 16 bytes with 4-byte pointer and cookie */
+    class Proc(val pid: Int, val euid: Int, val narrow: Boolean) {
         val threads = ArrayList<Thread>()
         val nodes = HashMap<Pair<Long, Long>, Node>()
         val handles = HashMap<Int, Node>()
@@ -157,8 +160,8 @@ class BinderWorld(val name: String, private val log: (String) -> Unit) {
     private val procs = HashMap<Int, Proc>()
     private var ctx: Node? = null
 
-    @Synchronized fun attach(pid: Int, tid: Int, euid: Int, sink: (ByteArray) -> Unit): Thread {
-        val p = procs.getOrPut(pid) { Proc(pid, euid).also { log("$name: process $pid came") } }
+    @Synchronized fun attach(pid: Int, tid: Int, euid: Int, narrow: Boolean, sink: (ByteArray) -> Unit): Thread {
+        val p = procs.getOrPut(pid) { Proc(pid, euid, narrow).also { log("$name: process $pid came" + if (narrow) " (32-bit binder ABI)" else "") } }
         return Thread(p, tid, sink).also { p.threads.add(it) }
     }
 
@@ -293,25 +296,32 @@ class BinderWorld(val name: String, private val log: (String) -> Unit) {
 
     /** Rewrites the binder objects in [data] for [to]: own nodes become (ptr, cookie), others handles. */
     private fun translate(from: Proc, to: Proc, data: ByteArray, offsets: IntArray): Boolean {
+        if (from.narrow != to.narrow) { log("$name: ${from.pid} and ${to.pid} use different binder ABIs"); return false }
+        // flat_binder_object: type, flags, binder/handle, cookie; pointer-sized fields are 8 or 4 bytes
+        val narrow = from.narrow
+        val size = if (narrow) 16 else 24
+        fun word(o: Int): Long = if (narrow) Wire.u32(data, o).toLong() and 0xffffffffL else Wire.u64(data, o)
+        fun putWord(o: Int, v: Long) { if (narrow) Wire.put32(data, o, v.toInt()) else Wire.put64(data, o, v) }
+        val cookieAt = if (narrow) 12 else 16
         for (off in offsets) {
             if (off < 0 || off + 4 > data.size) { log("$name: object offset $off outside the data (${from.pid})"); return false }
             val type = Wire.u32(data, off)
             when (type) {
                 Wire.T_BINDER, Wire.T_WEAK_BINDER, Wire.T_HANDLE, Wire.T_WEAK_HANDLE -> {
-                    if (off + 24 > data.size) return false
+                    if (off + size > data.size) return false
                     val strong = type == Wire.T_BINDER || type == Wire.T_HANDLE
                     val node = if (type == Wire.T_BINDER || type == Wire.T_WEAK_BINDER) {
-                        val ptr = Wire.u64(data, off + 8); val cookie = Wire.u64(data, off + 16)
+                        val ptr = word(off + 8); val cookie = word(off + cookieAt)
                         from.nodes.getOrPut(ptr to cookie) { Node(from, ptr, cookie) }
                     } else from.handles[Wire.u32(data, off + 8)] ?: run {
                         log("$name: object with unknown handle ${Wire.u32(data, off + 8)} from ${from.pid}"); return false
                     }
                     if (node.owner === to) {
                         Wire.put32(data, off, if (strong) Wire.T_BINDER else Wire.T_WEAK_BINDER)
-                        Wire.put64(data, off + 8, node.ptr); Wire.put64(data, off + 16, node.cookie)
+                        putWord(off + 8, node.ptr); putWord(off + cookieAt, node.cookie)
                     } else {
                         Wire.put32(data, off, if (strong) Wire.T_HANDLE else Wire.T_WEAK_HANDLE)
-                        Wire.put64(data, off + 8, to.handleFor(node).toLong()); Wire.put64(data, off + 16, 0)
+                        putWord(off + 8, to.handleFor(node).toLong()); putWord(off + cookieAt, 0)
                     }
                 }
                 Wire.T_PTR -> {}

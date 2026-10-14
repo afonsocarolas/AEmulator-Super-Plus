@@ -33,6 +33,8 @@ class GuestRunner(
     private fun isEnvToken(t: String) = !t.startsWith("-") && Regex("^[A-Z_][A-Z0-9_]*=").containsMatchIn(t)
 
     val engine: Engine get() = img.engine
+    /** Android 8+: binder protocol of the firmware's libhwbinder, for the guest's /dev/hwbinder library */
+    private val hwbProtocol: Int? by lazy { if (img.api >= 26) FirmwareArch.hwbinderProtocolOrDefault(paths.root) else null }
     val qemu: File get() = paths.nativeBin(engine.qemu)
     val runner: File get() = paths.nativeBin(engine.runner)
 
@@ -67,6 +69,7 @@ class GuestRunner(
         // ashmem через memfd (движок) + наша прослойка от запрещённых в песочнице вызовов (mount, reboot…).
         // glibc firmware (Google TV) cannot load the bionic-linked libaemushim.so (DT_NEEDED libc.so): ashmem shim only.
         e["DHD_ENV_LD_PRELOAD"] = GuestPreload.value(GuestPreload.isGlibcFirmware(paths.root), treble = img.api >= 26)
+        hwbProtocol?.let { e["AEMU_HWB_PROTOCOL"] = it.toString() }
         e["ANDROID_ROOT"] = img.exports["ANDROID_ROOT"] ?: "/system"
         e["ANDROID_DATA"] = img.exports["ANDROID_DATA"] ?: "/data"
         e["ANDROID_ASSETS"] = img.exports["ANDROID_ASSETS"] ?: "/system/app"

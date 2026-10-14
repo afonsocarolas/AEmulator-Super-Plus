@@ -264,6 +264,7 @@ fun Library(model: LibraryModel) {
                     onSettings = { settingsFor = it },
                     onRename = { renameFor = it },
                     onDelete = { deleteFor = it },
+                    onDismissWarnings = model::dismissWarnings,
                 )
             } else LazyColumn(
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 120.dp),
@@ -296,6 +297,7 @@ fun Library(model: LibraryModel) {
                             onDelete = { deleteFor = img },
                             baseName = images.firstOrNull { it.id == img.baseId }?.name,
                             active = activeVmId == img.id,
+                            onDismissWarnings = { model.dismissWarnings(img) },
                         )
                         }
                     }
@@ -516,7 +518,8 @@ private fun ImportCard(s: ImportState, onCancel: () -> Unit, onDismiss: () -> Un
 
 @Composable
 @OptIn(ExperimentalFoundationApi::class)
-private fun ImageCard(img: GuestImage, onStart: () -> Unit, onSettings: () -> Unit, onRename: () -> Unit, onDelete: () -> Unit, baseName: String? = null, active: Boolean = false) {
+private fun ImageCard(img: GuestImage, onStart: () -> Unit, onSettings: () -> Unit, onRename: () -> Unit, onDelete: () -> Unit, baseName: String? = null, active: Boolean = false,
+                      onDismissWarnings: () -> Unit = {}) {
     val ctx = LocalContext.current
     val lowPowerLabel = stringResource(R.string.lpm_start)
     Card(shape = MaterialTheme.shapes.large, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
@@ -544,7 +547,7 @@ private fun ImageCard(img: GuestImage, onStart: () -> Unit, onSettings: () -> Un
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (img.lastBootMs > 0) Text(stringResource(R.string.last_boot, (img.lastBootMs / 1000).toInt()), style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
-            img.warnings.firstOrNull()?.let { Text("⚠ $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.tertiary) }
+            img.warnings.firstOrNull()?.let { WarningLine(it, onDismissWarnings) }
             Spacer(Modifier.height(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Surface(shape = ButtonDefaults.shape, color = MaterialTheme.colorScheme.primary,

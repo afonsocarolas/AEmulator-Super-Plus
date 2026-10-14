@@ -423,6 +423,11 @@ class GuestVm(val ctx: Context, val img: GuestImage, val lowPowerBoot: Boolean =
         runCatching { logFile.writeText("") }
         log("image \"${img.name}\": ${img.displayVersion}, ${img.skin}, engine ${engine.title}")
         if (!File(paths.root, "system/framework").isDirectory) error("firmware tree missing")
+        // the engine runs 32-bit ARM code only: an Intel or 64-bit-only firmware would see every program exit at once
+        FirmwareArch.of(paths.root)?.let { arch ->
+            log("firmware CPU: ${arch.label}")
+            FirmwareArch.problem(arch)?.let { error(it) }
+        }
         if (MmiBoot.frameworkless(paths.root))
             error("this firmware has no Android framework (system/framework/framework.jar) and no native MMI/FTM test program to run instead")
         val qemu = paths.nativeBin(engine.qemu)
@@ -548,7 +553,8 @@ class GuestVm(val ctx: Context, val img: GuestImage, val lowPowerBoot: Boolean =
         overrides["net.dns2"] = "1.1.1.1"
         // в прошивках старая база часовых поясов — передаём текущее смещение, а не название зоны
         overrides["persist.sys.timezone"] = gmtZone()
-        if (!props.prepare(overrides)) error("property area not ready")
+        if (!props.prepare(overrides, treblePropFiles(), trie = img.api >= 26)) error("property area not ready")
+        ensureAbiList()
         fixer.skipPreBoot(props)
         // Do not let the older Sony migration un-provision data completed by the explicit option.
         if (SetupWizardOption.restoreSonyFlow(s.skipSetupWizard,
@@ -856,19 +862,31 @@ class GuestVm(val ctx: Context, val img: GuestImage, val lowPowerBoot: Boolean =
         synchronized(procs) { procs[name] = p }
         pidOf(p)?.let { pgids.add(it) }
         log("· $name started")
+        val started = System.currentTimeMillis()
         Thread({
+            val last = ArrayDeque<String>()
             if (!direct) runCatching {
                 OutputStreamWriter(FileOutputStream(log, true)).use { w ->
                     w.write("\n=== $name ${stamp()} ===\n")
-                    p.inputStream.bufferedReader().forEachLine { w.write(it); w.write("\n"); w.flush() }
+                    p.inputStream.bufferedReader().forEachLine {
+                        w.write(it); w.write("\n"); w.flush()
+                        if (it.isNotBlank()) { last.addLast(it); if (last.size > 4) last.removeFirst() }
+                    }
                 }
             }
             val code = runCatching { p.waitFor() }.getOrDefault(-1)
-            if (!stopping) log("· $name exited, code $code")
+            if (!stopping) {
+                log("· $name exited, code $code")
+                // died on start: the program never got going, and what it printed says why (loader, qemu, linker)
+                if (code != 0 && System.currentTimeMillis() - started < 3000 && last.isNotEmpty() && explainedExits.add(name))
+                    last.forEach { log("    $name: ${it.trim().take(220)}") }
+            }
         }, "log-$name").apply { isDaemon = true; start() }
     }
 
     private fun alive(): List<String> = synchronized(procs) { procs.filterValues { it.isAlive }.keys.toList() }
+    /** services whose output on an immediate exit was already copied into the host log */
+    private val explainedExits: MutableSet<String> = java.util.Collections.synchronizedSet(HashSet())
 
     /**
      * Pixel format the boot logo uses in fb0 (0 = RGB565, 1 = RGBA_8888, 2 = BGRA_8888). The emulated fb0 is two 32-bit
@@ -1229,6 +1247,26 @@ class GuestVm(val ctx: Context, val img: GuestImage, val lowPowerBoot: Boolean =
             runCatching { startService(h) }
         }
         runCatching { startService(z) }
+    }
+
+    /** Android 8+: the property files init loads besides /default.prop and /system/build.prop, in its order */
+    private fun treblePropFiles(): List<File> =
+        if (img.api >= 26) listOf("odm/default.prop", "vendor/default.prop", "odm/build.prop", "vendor/build.prop").map { File(paths.root, it) }
+        else emptyList()
+
+    /**
+     * 5.0+ zygote aborts without its ABI list ("Unable to determine ABI list from property ro.product.cpu.abilist32").
+     * Treble firmware keeps it outside /system; when no property file has it, it comes from the firmware's CPU.
+     */
+    private fun ensureAbiList() {
+        if (img.api < 21) return
+        val abi = props.get("ro.product.cpu.abi")?.takeIf { it.isNotBlank() && !it.startsWith("arm64") } ?: "armeabi-v7a"
+        val list32 = listOfNotNull(abi, props.get("ro.product.cpu.abi2")?.takeIf { it.isNotBlank() && it != abi }, "armeabi".takeIf { abi != "armeabi" })
+            .distinct().joinToString(",")
+        var added = 0
+        if (props.get("ro.product.cpu.abilist32").isNullOrBlank() && props.put("ro.product.cpu.abilist32", list32)) added++
+        if (props.get("ro.product.cpu.abilist").isNullOrBlank() && props.put("ro.product.cpu.abilist", list32)) added++
+        if (added > 0) log("props: CPU ABI list not in the firmware's property files, set to $list32")
     }
 
     /** the last lines a guest process wrote to its stdout/stderr file */

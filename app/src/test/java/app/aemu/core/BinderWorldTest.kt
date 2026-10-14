@@ -10,9 +10,9 @@ class BinderWorldTest {
     private val world = BinderWorld("hwbinder") { println(it) }
 
     /** a guest thread: what the daemon sends it, decoded */
-    private class G(world: BinderWorld, pid: Int, tid: Int) {
+    private class G(world: BinderWorld, pid: Int, tid: Int, narrow: Boolean = false) {
         val got = ArrayList<ByteArray>()
-        val t = world.attach(pid, tid, 1000) { got.add(it) }
+        val t = world.attach(pid, tid, 1000, narrow) { got.add(it) }
         fun take(): ByteArray = got.removeAt(0)
         fun takeSimple(): Int { val f = take(); assertEquals(Wire.D_SIMPLE, Wire.u32(f, 4)); return Wire.u32(f, 8) }
         fun takeTxn(): Txn { val f = take(); assertEquals("expected a transaction", Wire.D_TXN, Wire.u32(f, 4)); return Txn(f.copyOfRange(8, f.size)) }
@@ -54,6 +54,41 @@ class BinderWorldTest {
         world.onMessage(t, Wire.LOOPER, u32s(2))
         world.onMessage(t, Wire.CTXMGR, ByteArray(0))
         world.onMessage(t, Wire.IDLE, ByteArray(0))
+    }
+
+    /** protocol 7 (32-bit binder ABI): flat_binder_object is 16 bytes, 4-byte pointer and cookie */
+    private fun obj32(type: Int, a: Int, cookie: Int = 0) = ByteArray(16).also { Wire.put32(it, 0, type); Wire.put32(it, 8, a); Wire.put32(it, 12, cookie) }
+
+    @Test fun thirtyTwoBitAbiBinderBecomesAHandleAndComesBackAsItself() {
+        val sm = G(world, 100, 100, narrow = true).apply {
+            world.onMessage(t, Wire.LOOPER, u32s(2)); world.onMessage(t, Wire.CTXMGR, ByteArray(0)); world.onMessage(t, Wire.IDLE, ByteArray(0))
+        }
+        val hal = G(world, 200, 200, narrow = true)
+        // a 4-byte header word, then the HAL's binder in the 16-byte layout right behind it
+        world.onMessage(hal.t, Wire.TXN, txn(false, 0, 2, 0, u32s(7) + obj32(Wire.T_BINDER, 0x1000, 0x2000), intArrayOf(4)))
+        assertEquals(Wire.BR_TRANSACTION_COMPLETE, hal.takeSimple())
+        val inbound = sm.takeTxn()
+        assertEquals(20, inbound.data.size)
+        assertEquals(Wire.T_HANDLE, Wire.u32(inbound.data, 4))
+        assertEquals(1, Wire.u32(inbound.data, 12))
+        assertEquals("cookie cleared in the 16-byte layout", 0, Wire.u32(inbound.data, 16))
+        // the context manager sends the handle back to the HAL: it arrives as the HAL's own (ptr, cookie)
+        world.onMessage(sm.t, Wire.TXN, txn(true, 0, 0, 0, u32s(0) + obj32(Wire.T_HANDLE, 1), intArrayOf(4)))
+        assertEquals(Wire.BR_TRANSACTION_COMPLETE, sm.takeSimple())
+        val back = hal.takeTxn()
+        assertEquals(Wire.T_BINDER, Wire.u32(back.data, 4))
+        assertEquals(0x1000, Wire.u32(back.data, 12))
+        assertEquals(0x2000, Wire.u32(back.data, 16))
+    }
+
+    @Test fun mixedAbisAreRefused() {
+        val sm = G(world, 100, 100, narrow = false).apply {
+            world.onMessage(t, Wire.LOOPER, u32s(2)); world.onMessage(t, Wire.CTXMGR, ByteArray(0)); world.onMessage(t, Wire.IDLE, ByteArray(0))
+        }
+        val hal = G(world, 200, 200, narrow = true)
+        world.onMessage(hal.t, Wire.TXN, txn(false, 0, 2, 0, obj32(Wire.T_BINDER, 0x1000), intArrayOf(0)))
+        assertEquals(Wire.BR_FAILED_REPLY, hal.takeSimple())
+        assertTrue(sm.got.isEmpty())
     }
 
     @Test fun halRegistersWithTheContextManagerAndGetsTheReply() {

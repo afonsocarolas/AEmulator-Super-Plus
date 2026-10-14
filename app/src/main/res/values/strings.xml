@@ -477,4 +477,5 @@
     <string name="sk_hint">Drag the blue screen area or a yellow key to move it, a corner dot to resize it.</string>
     <string name="sk_empty">Add a PNG of a phone to make a device skin</string>
     <string name="sk_bar_hidden">This skin has its own keys, so the on-screen bar is hidden while it is shown.</string>
+    <string name="warning_dismiss">Hide this note</string>
 </resources>

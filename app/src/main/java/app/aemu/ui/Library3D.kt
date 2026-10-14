@@ -129,6 +129,7 @@ internal fun Library3D(
     onSettings: (GuestImage) -> Unit,
     onRename: (GuestImage) -> Unit,
     onDelete: (GuestImage) -> Unit,
+    onDismissWarnings: (GuestImage) -> Unit = {},
 ) {
     if (images.isEmpty()) return
     val ctx = LocalContext.current
@@ -209,7 +210,7 @@ internal fun Library3D(
                 }
             }
             PageDots(images.size, pager.currentPage)
-            Details(current, current.id == activeVmId, baseNameOf(current), ::start, onSettings, onRename, onDelete)
+            Details(current, current.id == activeVmId, baseNameOf(current), ::start, onSettings, onRename, onDelete, onDismissWarnings)
         }
     }
 }
@@ -452,7 +453,8 @@ private fun PageDots(count: Int, current: Int) {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun Details(img: GuestImage, active: Boolean, baseName: String?, onStart: (GuestImage, Boolean) -> Unit,
-                    onSettings: (GuestImage) -> Unit, onRename: (GuestImage) -> Unit, onDelete: (GuestImage) -> Unit) {
+                    onSettings: (GuestImage) -> Unit, onRename: (GuestImage) -> Unit, onDelete: (GuestImage) -> Unit,
+                    onDismissWarnings: (GuestImage) -> Unit) {
     val ctx = LocalContext.current
     val lowPowerLabel = stringResource(R.string.lpm_start)
     Column(Modifier.fillMaxWidth().padding(horizontal = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -468,9 +470,7 @@ private fun Details(img: GuestImage, active: Boolean, baseName: String?, onStart
             color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (img.lastBootMs > 0) Text(stringResource(R.string.last_boot, (img.lastBootMs / 1000).toInt()), style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
-        img.warnings.firstOrNull()?.let {
-            Text("⚠ $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.tertiary, textAlign = TextAlign.Center)
-        }
+        img.warnings.firstOrNull()?.let { WarningLine(it, { onDismissWarnings(img) }, center = true) }
         Text(stringResource(R.string.lib3d_tap_hint), style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
         Spacer(Modifier.height(10.dp))
