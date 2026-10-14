@@ -478,4 +478,17 @@
     <string name="sk_empty">Adicione um PNG de um telemóvel para criar uma skin de aparelho</string>
     <string name="sk_bar_hidden">Esta skin tem teclas próprias, por isso a barra no ecrã fica oculta enquanto é mostrada.</string>
     <string name="warning_dismiss">Ocultar este aviso</string>
+    <string name="bs_title">Som de inicialização</string>
+    <string name="bs_sub">Um som curto quando um sistema começa ou termina de iniciar.</string>
+    <string name="bs_off">Desligado</string>
+    <string name="bs_chime">Carrilhão</string>
+    <string name="bs_retro">Bipe retro</string>
+    <string name="bs_rise">Tom crescente</string>
+    <string name="bs_custom">O meu próprio som</string>
+    <string name="bs_custom_sub">Escolha um ficheiro de áudio do telemóvel (até 10 MB)</string>
+    <string name="bs_preview">Tocar</string>
+    <string name="bs_when">Tocar</string>
+    <string name="bs_when_start">Ao iniciar</string>
+    <string name="bs_when_finished">Ao terminar</string>
+    <string name="bs_note">Toca no volume de multimédia do telemóvel. Os sons incluídos são criados pela aplicação.</string>
 </resources>

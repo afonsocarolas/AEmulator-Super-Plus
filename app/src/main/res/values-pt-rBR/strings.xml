@@ -444,4 +444,17 @@
     <string name="sk_empty">Adicione um PNG de um celular para criar uma skin de aparelho</string>
     <string name="sk_bar_hidden">Esta skin tem teclas próprias, então a barra na tela fica oculta enquanto ela é exibida.</string>
     <string name="warning_dismiss">Ocultar este aviso</string>
+    <string name="bs_title">Som de inicialização</string>
+    <string name="bs_sub">Um som curto quando um sistema começa ou termina de iniciar.</string>
+    <string name="bs_off">Desligado</string>
+    <string name="bs_chime">Carrilhão</string>
+    <string name="bs_retro">Bipe retrô</string>
+    <string name="bs_rise">Tom crescente</string>
+    <string name="bs_custom">Meu próprio som</string>
+    <string name="bs_custom_sub">Escolha um arquivo de áudio do celular (até 10 MB)</string>
+    <string name="bs_preview">Tocar</string>
+    <string name="bs_when">Tocar</string>
+    <string name="bs_when_start">Ao iniciar</string>
+    <string name="bs_when_finished">Ao terminar</string>
+    <string name="bs_note">Toca no volume de mídia do celular. Os sons incluídos são criados pelo app.</string>
 </resources>

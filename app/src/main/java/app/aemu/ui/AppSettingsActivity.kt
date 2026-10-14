@@ -249,6 +249,7 @@ private fun AppSettings(onBack: () -> Unit, onRestyle: () -> Unit) {
                     // the navigation bar style is now part of the VM screen theme (Original, Sunset, 2.x-5.x eras, own themes)
                     VmThemeRow()
                     UiStyleRow()
+                    BootSoundRow()
                     Row_(Icons.Rounded.Translate, stringResource(R.string.as_language), langName) { langDialog = true }
                     Text(stringResource(R.string.as_theme), style = MaterialTheme.typography.labelLarge,
                         modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp))

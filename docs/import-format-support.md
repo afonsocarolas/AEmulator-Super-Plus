@@ -6,6 +6,7 @@ AEmulator Plus imports firmware into the guest filesystem; it is not a general-p
 - 7z, including sequential/solid archives. Entries are read through `SevenZFile.read()` while the current entry is active, then nested images/archives are processed after the archive pass.
 - RAR bundles through Junrar, with path traversal checks and selective extraction of firmware-relevant entries.
 - TAR, TAR.MD5, TWRP `.win`, gzip, xz, and bzip2 streams.
+- Microsoft Cabinet `.cab` (stored, MSZIP, LZX), as LG's support tool delivers firmware (e.g. `AS73012a_00.S12a_00.cab` for the LG Optimus Select AS730); the `.tot` / `.kdz` / `.bin` inside goes on to the LG handlers. Split (multi-part) and Quantum-compressed cabinets are refused with a message.
 - Android OTA `system.new.dat` / `system.new.dat.br` plus transfer lists, Android sparse images and Motorola sparse chunks.
 - ext2/3/4 images, YAFFS2 images, rootfs trees, boot/recovery images, and CPIO newc/crc/odc archives.
 - Sony Flashtool `.ftf` bundles and loose `.sin` images (SIN v1/v2 hash-block images, v3 with MMCF ADDR/LZ4A maps, v4 tar/tar.gz). The system, kernel/boot (ELF or `ANDROID!`), fotakernel/recovery, oem and vendor images are used; the rest of the bundle is skipped.

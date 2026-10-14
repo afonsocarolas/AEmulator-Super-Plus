@@ -478,4 +478,17 @@
     <string name="sk_empty">Add a PNG of a phone to make a device skin</string>
     <string name="sk_bar_hidden">This skin has its own keys, so the on-screen bar is hidden while it is shown.</string>
     <string name="warning_dismiss">Hide this note</string>
+    <string name="bs_title">Boot sound</string>
+    <string name="bs_sub">A short sound when a system starts or finishes booting.</string>
+    <string name="bs_off">Off</string>
+    <string name="bs_chime">Chime</string>
+    <string name="bs_retro">Retro beep</string>
+    <string name="bs_rise">Rising tone</string>
+    <string name="bs_custom">My own sound</string>
+    <string name="bs_custom_sub">Pick an audio file from your phone (up to 10 MB)</string>
+    <string name="bs_preview">Play</string>
+    <string name="bs_when">Play it</string>
+    <string name="bs_when_start">When starting</string>
+    <string name="bs_when_finished">When booted</string>
+    <string name="bs_note">Plays at your phone\'s media volume. The built-in sounds are made by the app.</string>
 </resources>

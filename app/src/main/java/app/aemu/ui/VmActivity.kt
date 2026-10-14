@@ -351,7 +351,17 @@ class VmActivity : ComponentActivity() {
         vm.onFrame = { guest.rings++; guest.poke() }
         state = vm.state
         logLines.addAll(vm.lines().takeLast(200))
-        vm.onState { st -> runOnUiThread { state = st } }
+        // the boot sound: as the boot starts, or when the guest reports it finished (not for recovery or charging boots)
+        val bootSound = app.aemu.core.BootSound.load(this)
+        vm.onState { st -> runOnUiThread {
+            val was = state
+            state = st
+            if (bootSound.sound != app.aemu.core.BootSound.Sound.OFF && !vm.recoveryMode && !vm.lowPowerBoot && st != was) {
+                val moment = if (st == GuestVm.State.BOOTING) app.aemu.core.BootSound.Moment.START
+                    else if (st == GuestVm.State.RUNNING && was == GuestVm.State.BOOTING) app.aemu.core.BootSound.Moment.FINISHED else null
+                if (moment == bootSound.moment) app.aemu.core.BootSound.play(applicationContext, bootSound.sound)
+            }
+        } }
         vm.onLog { line -> runOnUiThread { logLines.add(line); if (logLines.size > 400) logLines.removeRange(0, logLines.size - 400) } }
         guest.start()
         loadMenuOffset()
