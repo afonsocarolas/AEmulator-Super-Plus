@@ -49,6 +49,8 @@ class GuestVm(val ctx: Context, val img: GuestImage, val lowPowerBoot: Boolean =
     /** Guest reported boot completion; this does not prove that its launcher rendered. */
     @Volatile private var everBooted = false
     @Volatile private var zygoteRestarts = 0
+    /** boot time (ms) at which the next "boot is taking long" report is written */
+    @Volatile private var nextStallReport = BootStall.FIRST_MS
     @Volatile private var imeRetried = false
         private set
     @Volatile var failure: String? = null
@@ -625,6 +627,7 @@ class GuestVm(val ctx: Context, val img: GuestImage, val lowPowerBoot: Boolean =
         bootAt = System.currentTimeMillis()
         bootDoneAt = 0
         everBooted = false; zygoteRestarts = 0; imeRetried = false
+        nextStallReport = BootStall.FIRST_MS
         bootAnimCheckRunning.set(false); bootAnimFixes = 0
         touchWizMediaStarted = false
         noteBoot.interrupted()
@@ -1051,6 +1054,17 @@ class GuestVm(val ctx: Context, val img: GuestImage, val lowPowerBoot: Boolean =
             var restarts = HashMap<String, Int>()
             while (!stopping) {
                 Thread.sleep(3000)
+                // a boot that neither completes nor crashes: what the guest is waiting for goes into the host log
+                if (bootDoneAt == 0L && bootAt > 0 && state != State.FAILED && !nativeUi) {
+                    val ran = System.currentTimeMillis() - bootAt
+                    if (ran >= nextStallReport) {
+                        nextStallReport = ran + BootStall.AGAIN_MS
+                        log("⏳ boot running for ${ran / 1000} s without finishing; the guest's latest:")
+                        runCatching {
+                            BootStall.report(GuestLog.tail(paths.root, buffer = "system"), GuestLog.tail(paths.root))
+                        }.getOrDefault(listOf("guest log not readable")).forEach { log("  $it") }
+                    }
+                }
                 if (power.length() > 0) { val v = runCatching { power.readText().trim() }.getOrDefault("reboot"); power.writeText(""); powerRequest(v) }
                 if (img.api >= 21) runCatching { dns.ensure() }
                 val dead = synchronized(procs) { procs.filter { !it.value.isAlive }.toList() }
